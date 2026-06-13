@@ -21,9 +21,10 @@ This document defines the mandatory rules and checklists that **all developers a
 
 ### Step 2: Verify Environment
 
-1. **Go toolchain** — Confirm `go version` reports the project-required Go version (see `go.mod`).
-2. **Config file** — Confirm `tardis.yml` exists at the expected path for local runs.
-3. **Port check** — Default port is **8080**. Confirm nothing else is bound to it.
+1. **Dedicated Docker Environment** — Never set up the development environment on the local host machine. You must build and use a dedicated Docker environment for development and testing to prevent local environment pollution.
+2. **Go toolchain** — Confirm `go version` reports the project-required Go version inside the container.
+3. **Config file** — Confirm `tardis.yml` exists at the expected path.
+4. **Port check** — Default port is **8080**. Confirm nothing else is bound to it.
 
 ### Step 3: Core Constraints Self-Checklist
 
