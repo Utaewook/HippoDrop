@@ -92,10 +92,7 @@ CREATE TABLE path_cache (
 ### 2.4. Scheduler
 
 - A single long-running Goroutine that monitors the Task Queue for `pending` Tasks.
-- Dispatches Tasks to the Worker Pool.
-
-> [!NOTE]
-> The exact dispatch mechanism (push via channel vs. Worker polling SQLite directly) is an **open design decision**. Invoke `/grill-me` before implementing the Scheduler.
+- Dispatches Tasks to the Worker Pool via a Go Channel to minimize SQLite lock contention.
 
 ---
 
@@ -196,15 +193,15 @@ SIGTERM received
 
 ---
 
-## 5. Open Design Questions (Invoke `/grill-me`)
+## 5. Architectural Decisions (Resolved)
 
-| Component | Open Question |
+| Component | Final Decision |
 |---|---|
-| **Scheduler dispatch** | Push channel from Scheduler to Workers, or Workers poll SQLite themselves? |
-| **Startup recovery** | Should `running` tasks be auto-reset to `pending` on startup? |
-| **Status endpoint schema** | Exact JSON response for `GET /tasks/{task_id}`? |
-| **Prefetch API contract** | Exact request/response schema for background download requests? |
-| **Chunked download** | Should downloads also use chunked transfer, or stream directly to disk? |
+| **Scheduler dispatch** | Scheduler polls SQLite and pushes to a Go Channel for Workers to consume. |
+| **Startup recovery** | All `running` tasks are automatically reset to `pending` on startup to guarantee no task is permanently lost. |
+| **Status endpoint schema** | Detailed response including `type`, `local_path`, `remote_path`, `retry_count`, and `created_at` in addition to basic status. |
+| **Prefetch API contract** | `POST /download` with `{ "remote_path": "...", "local_path": "..." }` returns `202 Accepted` and `task_id`. |
+| **Chunked download** | Downloads use HTTP Range requests for Chunk-based resumable transfers, matching the upload strategy. |
 
 ---
 
