@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  tardis-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tardis_dev_env
+    volumes:
+      - .:/app
+    ports:
+      - "8080:8080"
+    environment:
+      - GO111MODULE=on
+      - CGO_ENABLED=1
+    command: sh -c "if [ ! -f go.mod ]; then go mod init tardis; fi && go mod tidy && air"

@@ -1,0 +1,14 @@
+server:
+  port: 8080
+  data_dir: "./data"
+
+storage:
+  provider: "google_drive"
+  google_drive:
+    credentials_path: "./credentials.json"
+    rate_limit_per_second: 10
+    retry_max_attempts: 5
+
+workers:
+  pool_size: 4
+  chunk_size_mb: 10
