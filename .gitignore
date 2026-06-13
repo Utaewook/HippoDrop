@@ -1,0 +1,23 @@
+# Binaries and build output
+/build/
+/tmp/
+tardis
+tardis-*
+
+# Database and Data directories
+*.db
+*.db-shm
+*.db-wal
+/data/
+
+# Credentials and secrets
+credentials.json
+*.pem
+*.key
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Go
+vendor/
