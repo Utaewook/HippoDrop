@@ -17,6 +17,9 @@ jobs:
           - os: ubuntu-latest
             goos: linux
             goarch: amd64
+          - os: ubuntu-latest
+            goos: linux
+            goarch: arm64
           - os: macos-latest
             goos: darwin
             goarch: arm64
@@ -33,11 +36,16 @@ jobs:
         with:
           go-version: '1.25'
 
+      - name: Install Cross Compiler (Linux ARM64)
+        if: matrix.goos == 'linux' && matrix.goarch == 'arm64'
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross
+
       - name: Build Binary
         env:
           CGO_ENABLED: 1
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
+          CC: ${{ matrix.goos == 'linux' && matrix.goarch == 'arm64' && 'aarch64-linux-gnu-gcc' || '' }}
         run: go build -o tardis-${{ matrix.goos }}-${{ matrix.goarch }} cmd/tardis/main.go
         
       - name: Upload to Release
