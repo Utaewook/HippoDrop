@@ -44,6 +44,7 @@ Before writing or merging any code, verify every item:
 2. **Branch check** — Commits must be on `develop`. Direct commits to `main` are **forbidden**.
 3. **Commit message** — Strictly follow Conventional Commits format (see [05_convention.md](./docs/05_convention.md)).
 4. **Docs updated** — If terminology, architecture, or constraints changed, update the relevant doc before closing.
+5. **Troubleshooting documented** — Ensure any complex bugs fixed or architectural decisions made during the session have been documented via the `/trouble-shooting` skill.
 
 ---
 
@@ -54,6 +55,7 @@ Before writing or merging any code, verify every item:
 - **Grill before building:** When any design decision is ambiguous or contested, the AI **must** invoke the `/grill-me` process to resolve it before writing code.
 - **No unauthorized installs:** Never run `go get`, `npm install`, `pip install`, or equivalent unless in initial setup or explicitly user-approved.
 - **Terminology lock:** Always use the exact terms defined in [02_terminology.md](./docs/02_terminology.md). Never invent synonyms.
+- **Troubleshooting records:** The AI must proactively use the `trouble-shooting` skill to document errors, problems, requirements, and architectural decisions when resolving complex issues.
 
 ---
 
