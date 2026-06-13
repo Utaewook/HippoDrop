@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -19,6 +20,9 @@ import (
 )
 
 func main() {
+	configPath := flag.String("c", "tardis.yml", "path to config file")
+	flag.Parse()
+
 	fmt.Println("Tardis Cloud Storage Proxy Demon starting...")
 
 	// 1. Setup root context for graceful shutdown
@@ -26,7 +30,7 @@ func main() {
 	defer stop()
 
 	// 2. Load Configuration
-	cfg, err := config.Load("tardis.yml")
+	cfg, err := config.Load(*configPath)
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
