@@ -1,0 +1,81 @@
+# Tardis — Session Rules & Checklist
+
+This document defines the mandatory rules and checklists that **all developers and AI assistants** must read and follow at the **start and end of every session**. No exceptions.
+
+---
+
+## 1. Session Start Checklist (Follow in Order)
+
+### Step 1: Verify Git State
+
+1. **Branch & Sync** — Always work on `develop`. Never directly commit to `main`.
+   ```bash
+   git status
+   git pull origin develop
+   ```
+2. **Review Recent Commits** — Understand what changed in the last session.
+   ```bash
+   git log -n 5 --oneline
+   ```
+3. **Clean Workspace** — Confirm no leftover temp files or orphan SQLite locks from previous sessions.
+
+### Step 2: Verify Environment
+
+1. **Go toolchain** — Confirm `go version` reports the project-required Go version (see `go.mod`).
+2. **Config file** — Confirm `tardis.yml` exists at the expected path for local runs.
+3. **Port check** — Default port is **8080**. Confirm nothing else is bound to it.
+
+### Step 3: Core Constraints Self-Checklist
+
+Before writing or merging any code, verify every item:
+
+- [ ] **No unauthorized dependencies** — Do NOT run `go get` or modify `go.mod/go.sum` unless during initial setup or **explicitly requested by the user**.
+- [ ] **Single binary rule** — All logic must remain inside the single Tardis process. No external broker (Redis, Celery, RabbitMQ, etc.) may be introduced.
+- [ ] **SQLite queue is source-of-truth** — Worker state must always be persisted to SQLite, not held only in memory.
+- [ ] **Graceful shutdown** — Any worker change must preserve the `SIGTERM → drain → flush → exit` sequence.
+- [ ] **Rate Limiter always active** — The Token Bucket rate limiter must never be bypassed, even during testing.
+- [ ] **Ambiguity check** — If any design point is unclear or contested, **stop and invoke `/grill-me`** before proceeding.
+
+---
+
+## 2. Session End Checklist
+
+1. **Clean workspace** — Remove any temp files (e.g., `*.tmp`, test SQLite DBs) from the repo.
+2. **Branch check** — Commits must be on `develop`. Direct commits to `main` are **forbidden**.
+3. **Commit message** — Strictly follow Conventional Commits format (see [05_convention.md](./docs/05_convention.md)).
+4. **Docs updated** — If terminology, architecture, or constraints changed, update the relevant doc before closing.
+
+---
+
+## 3. AI Assistant Specific Rules (Mandatory)
+
+- **Thinking language:** All reasoning and planning must be done in **English**.
+- **Response language:** Replies to the user must be in **Korean**, using the **caveman** skill for conciseness.
+- **Grill before building:** When any design decision is ambiguous or contested, the AI **must** invoke the `/grill-me` process to resolve it before writing code.
+- **No unauthorized installs:** Never run `go get`, `npm install`, `pip install`, or equivalent unless in initial setup or explicitly user-approved.
+- **Terminology lock:** Always use the exact terms defined in [02_terminology.md](./docs/02_terminology.md). Never invent synonyms.
+
+---
+
+## 4. When to Invoke `/grill-me`
+
+Use `/grill-me` (or equivalent grill-me skill) whenever:
+
+- A new subsystem or component is being designed for the first time.
+- The scope of a feature is ambiguous (e.g., "what counts as a failed task?").
+- Two valid implementation approaches exist with significant trade-offs.
+- A change would affect the SQLite schema, the `StorageProvider` interface, or the public HTTP API contract.
+- The user's intent cannot be unambiguously inferred from the current docs.
+
+> [!IMPORTANT]
+> **Never skip the grill step.** Writing code before resolving ambiguity is the primary source of rework in this project.
+
+---
+
+## 5. Reference Documents
+
+- [Project Overview (01_project_overview.md)](./docs/01_project_overview.md)
+- [Terminology & Concepts (02_terminology.md)](./docs/02_terminology.md)
+- [Architecture & Data Flow (03_architecture.md)](./docs/03_architecture.md)
+- [Go Coding Convention (04_go_convention.md)](./docs/04_go_convention.md)
+- [Git & General Convention (05_convention.md)](./docs/05_convention.md)
