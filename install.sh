@@ -2,7 +2,7 @@
 set -e
 
 # Configuration
-REPO="your-github-username/tardis" # TODO: Change this to your actual GitHub repo
+REPO="Utaewook/Tardis"
 BIN_DIR="/usr/local/bin"
 CONFIG_DIR="/etc/tardis"
 BINARY_NAME="tardis"
