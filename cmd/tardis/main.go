@@ -13,7 +13,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/AlecAivazis/survey/v2"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/huh"
 
 	"tardis/internal/api"
 	"tardis/internal/config"
@@ -56,7 +57,7 @@ func main() {
 func printUsage() {
 	fmt.Println("🚀 Tardis Cloud Storage Proxy Daemon")
 	fmt.Println("\nUsage:")
-	fmt.Println("  tardis init          Launch interactive setup wizard")
+	fmt.Println("  tardis init          Launch full-screen setup wizard")
 	fmt.Println("  tardis start         Start the daemon (uses default ~/.tardis/config.yml)")
 	fmt.Println("  tardis start -c ...  Start with a custom config path")
 	fmt.Println("  tardis --version     Show version")
@@ -64,51 +65,70 @@ func printUsage() {
 }
 
 func runInit() {
-	fmt.Println("✨ Welcome to Tardis Setup Wizard ✨\n")
-
-	// 1. Select Provider
 	var provider string
-	prompt := &survey.Select{
-		Message: "Choose your cloud storage provider:",
-		Options: []string{"Google Drive", "Amazon S3 (Coming Soon)", "Dropbox (Coming Soon)"},
-		Default: "Google Drive",
+	var credPath string
+	var confirm bool
+
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewNote().
+				Title("✨ Tardis Setup Wizard ✨").
+				Description("Welcome! Let's configure your decentralized cloud storage gateway.\nPress Enter to continue."),
+			huh.NewSelect[string]().
+				Title("Choose your cloud storage provider:").
+				Options(
+					huh.NewOption("Google Drive", "Google Drive"),
+					huh.NewOption("Amazon S3 (Coming Soon)", "S3"),
+					huh.NewOption("Dropbox (Coming Soon)", "Dropbox"),
+				).
+				Value(&provider),
+		),
+	).WithProgramOptions(tea.WithAltScreen())
+
+	if err := form.Run(); err != nil {
+		fmt.Println("Wizard aborted.")
+		os.Exit(1)
 	}
-	survey.AskOne(prompt, &provider)
 
 	if provider != "Google Drive" {
-		fmt.Printf("\n❌ Sorry, %s is not supported in this beta version. Exiting.\n", provider)
+		fmt.Printf("❌ Sorry, %s is not supported in this beta version. Exiting.\n", provider)
 		os.Exit(1)
 	}
 
-	// 2. Setup Credentials
-	fmt.Println("\n🔑 Google Drive Authentication")
-	fmt.Println("Tardis needs your GCP Service Account JSON key (credentials.json) to securely access your drive.")
-	
-	var credPath string
-	credPrompt := &survey.Input{
-		Message: "Absolute path to your credentials.json:",
-		Suggest: func(toComplete string) []string {
-			files, _ := filepath.Glob(toComplete + "*")
-			return files
-		},
-	}
-	
-	err := survey.AskOne(credPrompt, &credPath, survey.WithValidator(func(val interface{}) error {
-		str, ok := val.(string)
-		if !ok || str == "" {
-			return errors.New("path cannot be empty")
-		}
-		if _, err := os.Stat(str); os.IsNotExist(err) {
-			return fmt.Errorf("file not found: %s", str)
-		}
-		return nil
-	}))
-	if err != nil {
-		fmt.Println("Initialization aborted.")
+	form2 := huh.NewForm(
+		huh.NewGroup(
+			huh.NewNote().
+				Title("🔑 Google Drive Setup").
+				Description("Tardis needs your GCP Service Account JSON key to operate independently."),
+			huh.NewInput().
+				Title("Absolute path to credentials.json:").
+				Value(&credPath).
+				Validate(func(str string) error {
+					if str == "" {
+						return errors.New("path cannot be empty")
+					}
+					if _, err := os.Stat(str); os.IsNotExist(err) {
+						return fmt.Errorf("file not found: %s", str)
+					}
+					return nil
+				}),
+			huh.NewConfirm().
+				Title("Ready to save configuration?").
+				Value(&confirm),
+		),
+	).WithProgramOptions(tea.WithAltScreen())
+
+	if err := form2.Run(); err != nil {
+		fmt.Println("Wizard aborted.")
 		os.Exit(1)
 	}
 
-	// 3. Save Configuration
+	if !confirm {
+		fmt.Println("Setup cancelled.")
+		os.Exit(1)
+	}
+
+	// Save Configuration
 	cfgPath := getDefaultConfigPath()
 	cfgDir := filepath.Dir(cfgPath)
 
