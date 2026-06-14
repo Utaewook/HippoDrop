@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"flag"
@@ -11,9 +10,10 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
+
+	"github.com/AlecAivazis/survey/v2"
 
 	"tardis/internal/api"
 	"tardis/internal/config"
@@ -23,6 +23,14 @@ import (
 )
 
 var Version = "v0.1.0-beta.2"
+
+func getDefaultConfigPath() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "./tardis.yml"
+	}
+	return filepath.Join(home, ".tardis", "config.yml")
+}
 
 func main() {
 	if len(os.Args) > 1 {
@@ -42,60 +50,74 @@ func main() {
 		}
 	}
 
-	// Fallback to start if no known subcommand is provided
 	runStart(os.Args[1:])
 }
 
 func printUsage() {
-	fmt.Println("Tardis Cloud Storage Proxy Daemon")
-	fmt.Println("Usage:")
-	fmt.Println("  tardis init          Interactive setup to connect your cloud provider")
-	fmt.Println("  tardis start -c ...  Start the proxy daemon")
-	fmt.Println("  tardis [flags]       Fallback for starting the daemon directly")
-	fmt.Println("  tardis --version     Print version information")
-	fmt.Println("  tardis --help        Print this message")
+	fmt.Println("🚀 Tardis Cloud Storage Proxy Daemon")
+	fmt.Println("\nUsage:")
+	fmt.Println("  tardis init          Launch interactive setup wizard")
+	fmt.Println("  tardis start         Start the daemon (uses default ~/.tardis/config.yml)")
+	fmt.Println("  tardis start -c ...  Start with a custom config path")
+	fmt.Println("  tardis --version     Show version")
+	fmt.Println("  tardis --help        Show help")
 }
 
 func runInit() {
-	fmt.Println("=== Tardis Initialization ===")
-	reader := bufio.NewReader(os.Stdin)
+	fmt.Println("✨ Welcome to Tardis Setup Wizard ✨\n")
 
-	fmt.Println("\n1. Select Cloud Provider:")
-	fmt.Println("   [1] Google Drive")
-	fmt.Print("Enter choice (default: 1): ")
-	choice, _ := reader.ReadString('\n')
-	choice = strings.TrimSpace(choice)
-	
-	if choice != "1" && choice != "" {
-		fmt.Println("Currently only Google Drive [1] is supported. Defaulting to Google Drive.")
+	// 1. Select Provider
+	var provider string
+	prompt := &survey.Select{
+		Message: "Choose your cloud storage provider:",
+		Options: []string{"Google Drive", "Amazon S3 (Coming Soon)", "Dropbox (Coming Soon)"},
+		Default: "Google Drive",
 	}
+	survey.AskOne(prompt, &provider)
 
-	fmt.Println("\n2. Google Drive Setup")
-	fmt.Println("Tardis requires your own Google Cloud Service Account credentials to operate independently.")
-	fmt.Println("Please create a Service Account in GCP and download the JSON key file.")
-	
-	fmt.Print("\nEnter the absolute path to your credentials.json: ")
-	credPath, _ := reader.ReadString('\n')
-	credPath = strings.TrimSpace(credPath)
-
-	if credPath == "" {
-		fmt.Println("Error: Credentials path is required.")
+	if provider != "Google Drive" {
+		fmt.Printf("\n❌ Sorry, %s is not supported in this beta version. Exiting.\n", provider)
 		os.Exit(1)
 	}
 
-	// Basic file existence check
-	if _, err := os.Stat(credPath); os.IsNotExist(err) {
-		fmt.Printf("Warning: File not found at %s. Please ensure it exists before starting the daemon.\n", credPath)
+	// 2. Setup Credentials
+	fmt.Println("\n🔑 Google Drive Authentication")
+	fmt.Println("Tardis needs your GCP Service Account JSON key (credentials.json) to securely access your drive.")
+	
+	var credPath string
+	credPrompt := &survey.Input{
+		Message: "Absolute path to your credentials.json:",
+		Suggest: func(toComplete string) []string {
+			files, _ := filepath.Glob(toComplete + "*")
+			return files
+		},
+	}
+	
+	err := survey.AskOne(credPrompt, &credPath, survey.WithValidator(func(val interface{}) error {
+		str, ok := val.(string)
+		if !ok || str == "" {
+			return errors.New("path cannot be empty")
+		}
+		if _, err := os.Stat(str); os.IsNotExist(err) {
+			return fmt.Errorf("file not found: %s", str)
+		}
+		return nil
+	}))
+	if err != nil {
+		fmt.Println("Initialization aborted.")
+		os.Exit(1)
 	}
 
-	fmt.Print("\nEnter the absolute path where tardis.yml should be saved (default: ./tardis.yml): ")
-	cfgPath, _ := reader.ReadString('\n')
-	cfgPath = strings.TrimSpace(cfgPath)
-	if cfgPath == "" {
-		cfgPath = "./tardis.yml"
+	// 3. Save Configuration
+	cfgPath := getDefaultConfigPath()
+	cfgDir := filepath.Dir(cfgPath)
+
+	if err := os.MkdirAll(cfgDir, 0755); err != nil {
+		fmt.Printf("\n❌ Failed to create config directory at %s: %v\n", cfgDir, err)
+		os.Exit(1)
 	}
 
-	// Generate basic config
+	dataDir := filepath.Join(cfgDir, "data")
 	configTemplate := fmt.Sprintf(`server:
   port: 8080
   data_dir: "%s"
@@ -110,26 +132,34 @@ storage:
 workers:
   pool_size: 4
   chunk_size_mb: 10
-`, filepath.Join(filepath.Dir(cfgPath), "data"), credPath)
+`, dataDir, credPath)
 
-	err := os.WriteFile(cfgPath, []byte(configTemplate), 0644)
-	if err != nil {
-		fmt.Printf("Failed to write config file: %v\n", err)
+	if err := os.WriteFile(cfgPath, []byte(configTemplate), 0644); err != nil {
+		fmt.Printf("\n❌ Failed to save config file: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("\nInitialization complete! Config saved to %s\n", cfgPath)
-	fmt.Printf("You can now start Tardis using:\n  tardis start -c %s\n", cfgPath)
+	fmt.Printf("\n✅ Success! Tardis is ready to run.\n")
+	fmt.Printf("📂 Configuration saved to: %s\n", cfgPath)
+	fmt.Println("\nYou can now start the daemon by running:")
+	fmt.Println("👉  tardis start")
 }
 
 func runStart(args []string) {
+	defaultCfg := getDefaultConfigPath()
 	startCmd := flag.NewFlagSet("start", flag.ExitOnError)
-	configPath := startCmd.String("c", "tardis.yml", "path to config file")
+	configPath := startCmd.String("c", defaultCfg, "path to config file")
 	startCmd.Parse(args)
 
-	fmt.Println("Tardis Cloud Storage Proxy Daemon starting...")
+	// Check if config exists
+	if _, err := os.Stat(*configPath); os.IsNotExist(err) {
+		fmt.Printf("❌ Config file not found at %s\n", *configPath)
+		fmt.Println("💡 Please run 'tardis init' first to generate a configuration.")
+		os.Exit(1)
+	}
 
-	// 1. Setup root context for graceful shutdown
+	fmt.Println("🚀 Tardis Cloud Storage Proxy Daemon starting...")
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
