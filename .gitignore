@@ -1,8 +1,8 @@
 # Binaries and build output
 /build/
 /tmp/
-tardis
-tardis-*
+/tardis
+/tardis-*
 
 # Database and Data directories
 *.db

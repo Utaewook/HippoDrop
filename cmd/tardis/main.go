@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"flag"
@@ -9,6 +10,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -19,11 +22,112 @@ import (
 	"tardis/internal/worker"
 )
 
-func main() {
-	configPath := flag.String("c", "tardis.yml", "path to config file")
-	flag.Parse()
+var Version = "v0.1.0-beta.2"
 
-	fmt.Println("Tardis Cloud Storage Proxy Demon starting...")
+func main() {
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "init":
+			runInit()
+			return
+		case "start":
+			runStart(os.Args[2:])
+			return
+		case "--version", "-v":
+			fmt.Printf("Tardis %s\n", Version)
+			return
+		case "--help", "-h":
+			printUsage()
+			return
+		}
+	}
+
+	// Fallback to start if no known subcommand is provided
+	runStart(os.Args[1:])
+}
+
+func printUsage() {
+	fmt.Println("Tardis Cloud Storage Proxy Daemon")
+	fmt.Println("Usage:")
+	fmt.Println("  tardis init          Interactive setup to connect your cloud provider")
+	fmt.Println("  tardis start -c ...  Start the proxy daemon")
+	fmt.Println("  tardis [flags]       Fallback for starting the daemon directly")
+	fmt.Println("  tardis --version     Print version information")
+	fmt.Println("  tardis --help        Print this message")
+}
+
+func runInit() {
+	fmt.Println("=== Tardis Initialization ===")
+	reader := bufio.NewReader(os.Stdin)
+
+	fmt.Println("\n1. Select Cloud Provider:")
+	fmt.Println("   [1] Google Drive")
+	fmt.Print("Enter choice (default: 1): ")
+	choice, _ := reader.ReadString('\n')
+	choice = strings.TrimSpace(choice)
+	
+	if choice != "1" && choice != "" {
+		fmt.Println("Currently only Google Drive [1] is supported. Defaulting to Google Drive.")
+	}
+
+	fmt.Println("\n2. Google Drive Setup")
+	fmt.Println("Tardis requires your own Google Cloud Service Account credentials to operate independently.")
+	fmt.Println("Please create a Service Account in GCP and download the JSON key file.")
+	
+	fmt.Print("\nEnter the absolute path to your credentials.json: ")
+	credPath, _ := reader.ReadString('\n')
+	credPath = strings.TrimSpace(credPath)
+
+	if credPath == "" {
+		fmt.Println("Error: Credentials path is required.")
+		os.Exit(1)
+	}
+
+	// Basic file existence check
+	if _, err := os.Stat(credPath); os.IsNotExist(err) {
+		fmt.Printf("Warning: File not found at %s. Please ensure it exists before starting the daemon.\n", credPath)
+	}
+
+	fmt.Print("\nEnter the absolute path where tardis.yml should be saved (default: ./tardis.yml): ")
+	cfgPath, _ := reader.ReadString('\n')
+	cfgPath = strings.TrimSpace(cfgPath)
+	if cfgPath == "" {
+		cfgPath = "./tardis.yml"
+	}
+
+	// Generate basic config
+	configTemplate := fmt.Sprintf(`server:
+  port: 8080
+  data_dir: "%s"
+
+storage:
+  provider: "google_drive"
+  google_drive:
+    credentials_path: "%s"
+    rate_limit_per_second: 10
+    retry_max_attempts: 5
+
+workers:
+  pool_size: 4
+  chunk_size_mb: 10
+`, filepath.Join(filepath.Dir(cfgPath), "data"), credPath)
+
+	err := os.WriteFile(cfgPath, []byte(configTemplate), 0644)
+	if err != nil {
+		fmt.Printf("Failed to write config file: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("\nInitialization complete! Config saved to %s\n", cfgPath)
+	fmt.Printf("You can now start Tardis using:\n  tardis start -c %s\n", cfgPath)
+}
+
+func runStart(args []string) {
+	startCmd := flag.NewFlagSet("start", flag.ExitOnError)
+	configPath := startCmd.String("c", "tardis.yml", "path to config file")
+	startCmd.Parse(args)
+
+	fmt.Println("Tardis Cloud Storage Proxy Daemon starting...")
 
 	// 1. Setup root context for graceful shutdown
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
