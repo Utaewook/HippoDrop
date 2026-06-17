@@ -141,10 +141,13 @@ func runInit() {
 			huh.NewNote().
 				Title("🔑 Google Drive Setup").
 				Description(fmt.Sprintf(
-					"Tardis needs your GCP Service Account JSON key to operate independently.\n\n"+
-						"Please enable Google Drive API in your GCP project:\n"+
-						"👉 %s\n\n"+
-						"(We have tried opening this link in your default browser.)",
+					"Tardis connects to Google Drive securely using a GCP Service Account.\n\n"+
+						"Follow these 3 quick steps to set it up:\n"+
+						"1. Enable Google Drive API in your GCP project:\n"+
+						"   👉 %s\n"+
+						"2. Create a Service Account in IAM, generate a JSON key, and download it.\n"+
+						"3. In Google Drive, create a folder and share it with your Service Account's email.\n\n"+
+						"(We have tried opening the step 1 link in your default browser.)",
 					gcpSetupURL,
 				)),
 			huh.NewInput().
