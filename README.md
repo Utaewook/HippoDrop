@@ -8,6 +8,7 @@
     <a href="https://github.com/Utaewook/Tardis/actions"><img src="https://img.shields.io/github/actions/workflow/status/Utaewook/Tardis/release.yml?style=flat-square" alt="Build Status"></a>
     <a href="https://goreportcard.com/report/github.com/Utaewook/Tardis"><img src="https://goreportcard.com/badge/github.com/Utaewook/Tardis?style=flat-square" alt="Go Report Card"></a>
     <a href="./LICENSE"><img src="https://img.shields.io/github/license/Utaewook/Tardis?style=flat-square" alt="License"></a>
+    <a href="https://ko-fi.com/twyou"><img src="https://img.shields.io/badge/Ko--fi-F16061?style=flat-square&logo=ko-fi&logoColor=white" alt="Ko-fi"></a>
   </p>
 </p>
 
