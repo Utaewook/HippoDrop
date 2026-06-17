@@ -55,12 +55,9 @@ archives:
       - linux-amd64
       - linux-arm64
       - darwin-arm64
-    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"
     formats:
-      - tar.gz
-    files:
-      - README.md
-      - tardis.example.yml
+      - binary
 
 checksum:
   name_template: "{{ .ProjectName }}_checksums.txt"
