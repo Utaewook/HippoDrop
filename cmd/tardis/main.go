@@ -23,9 +23,24 @@ import (
 	"tardis/internal/worker"
 )
 
-var Version = "v0.1.0-beta.3"
+var Version = "dev"
 
 func getDefaultConfigPath() string {
+	// Priority 1: User-level config (created by `tardis init`)
+	if home, err := os.UserHomeDir(); err == nil {
+		userConfig := filepath.Join(home, ".tardis", "config.yml")
+		if _, err := os.Stat(userConfig); err == nil {
+			return userConfig
+		}
+	}
+
+	// Priority 2: System-level config (created by `install.sh` or `make install`)
+	systemConfig := "/etc/tardis/tardis.yml"
+	if _, err := os.Stat(systemConfig); err == nil {
+		return systemConfig
+	}
+
+	// Fallback: user-level path (will trigger "run tardis init" message if missing)
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "./tardis.yml"
