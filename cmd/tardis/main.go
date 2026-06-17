@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -16,6 +17,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 
@@ -27,6 +29,9 @@ import (
 )
 
 var Version = "dev"
+
+//go:embed gcp_guide.md
+var gcpGuideText string
 
 func getDefaultConfigPath() string {
 	// Priority 1: User-level config (created by `tardis init`)
@@ -136,49 +141,71 @@ func runInit() {
 	gcpSetupURL := "https://console.cloud.google.com/apis/library/drive.googleapis.com"
 	_ = openBrowser(gcpSetupURL)
 
-	form2 := huh.NewForm(
-		huh.NewGroup(
-			huh.NewNote().
-				Title("🔑 Google Drive Setup").
-				Description(fmt.Sprintf(
-					"Tardis connects to Google Drive securely using a GCP Service Account.\n\n"+
-						"Follow these 3 quick steps to set it up:\n"+
-						"1. Enable Google Drive API in your GCP project:\n"+
-						"   👉 %s\n"+
-						"2. Create a Service Account in IAM, generate a JSON key, and download it.\n"+
-						"3. In Google Drive, create a folder and share it with your Service Account's email.",
-					gcpSetupURL,
-				)),
-			huh.NewInput().
-				Title("Absolute path to credentials.json:").
-				Value(&credPath).
-				Validate(func(str string) error {
-					if str == "" {
-						return errors.New("path cannot be empty")
-					}
-					if _, err := os.Stat(str); os.IsNotExist(err) {
-						return fmt.Errorf("file not found: %s", str)
-					}
-					return nil
-				}),
-			huh.NewInput().
-				Title("Google Drive Root Directory Name (default: tardis):").
-				Value(&rootDir).
-				Placeholder("tardis"),
-			huh.NewConfirm().
-				Title("Ready to save configuration?").
-				Value(&confirm),
-		),
-	).WithProgramOptions(tea.WithAltScreen())
+	var showGuide bool
 
-	if err := form2.Run(); err != nil {
-		fmt.Println("Wizard aborted.")
-		os.Exit(1)
-	}
+	for {
+		showGuide = false
+		form2 := huh.NewForm(
+			huh.NewGroup(
+				huh.NewNote().
+					Title("🔑 Google Drive Setup").
+					Description(fmt.Sprintf(
+						"Tardis connects to Google Drive securely using a GCP Service Account.\n\n"+
+							"Follow these 3 quick steps to set it up:\n"+
+							"1. Enable Google Drive API in your GCP project:\n"+
+							"   👉 %s\n"+
+							"2. Create a Service Account in IAM, generate a JSON key, and download it.\n"+
+							"3. In Google Drive, create a folder and share it with your Service Account's email.",
+						gcpSetupURL,
+					)),
+				huh.NewInput().
+					Title("Absolute path to credentials.json:").
+					Value(&credPath),
+				huh.NewConfirm().
+					Title("How do I get a credentials.json file?").
+					Value(&showGuide).
+					Affirmative("View Guide").
+					Negative("I have it"),
+				huh.NewInput().
+					Title("Google Drive Root Directory Name (default: tardis):").
+					Value(&rootDir).
+					Placeholder("tardis"),
+				huh.NewConfirm().
+					Title("Ready to save configuration?").
+					Value(&confirm),
+			),
+		).WithProgramOptions(tea.WithAltScreen())
 
-	if !confirm {
-		fmt.Println("Setup cancelled.")
-		os.Exit(1)
+		if err := form2.Run(); err != nil {
+			fmt.Println("Wizard aborted.")
+			os.Exit(1)
+		}
+
+		if showGuide {
+			runGuideViewer()
+			continue
+		}
+
+		if !confirm {
+			fmt.Println("Setup cancelled.")
+			os.Exit(1)
+		}
+
+		// Validate path only when trying to complete setup without viewing guide
+		if credPath == "" {
+			fmt.Println("❌ Error: path to credentials.json cannot be empty. Press Enter to try again.")
+			var dummy string
+			fmt.Scanln(&dummy)
+			continue
+		}
+		if _, err := os.Stat(credPath); os.IsNotExist(err) {
+			fmt.Printf("❌ Error: file not found at '%s'. Press Enter to try again.\n", credPath)
+			var dummy string
+			fmt.Scanln(&dummy)
+			continue
+		}
+
+		break
 	}
 
 	if rootDir == "" {
@@ -492,6 +519,70 @@ func runResume() {
 		fmt.Println("▶️  Tardis daemon has been resumed.")
 	} else {
 		fmt.Printf("❌ Resume request failed with status: %d\n", resp.StatusCode)
+	}
+}
+
+type guideModel struct {
+	viewport viewport.Model
+	content  string
+	ready    bool
+}
+
+func newGuideModel(content string) guideModel {
+	return guideModel{
+		content: content,
+	}
+}
+
+func (m guideModel) Init() tea.Cmd {
+	return nil
+}
+
+func (m guideModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+	var cmd tea.Cmd
+
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "q", "ctrl+c", "esc":
+			return m, tea.Quit
+		}
+	case tea.WindowSizeMsg:
+		headerHeight := 2
+		footerHeight := 2
+		verticalMarginHeight := headerHeight + footerHeight
+
+		if !m.ready {
+			m.viewport = viewport.New(msg.Width, msg.Height-verticalMarginHeight)
+			m.viewport.YPosition = headerHeight
+			m.viewport.SetContent(m.content)
+			m.ready = true
+		} else {
+			m.viewport.Width = msg.Width
+			m.viewport.Height = msg.Height - verticalMarginHeight
+		}
+	}
+
+	m.viewport, cmd = m.viewport.Update(msg)
+	cmds = append(cmds, cmd)
+
+	return m, tea.Batch(cmds...)
+}
+
+func (m guideModel) View() string {
+	if !m.ready {
+		return "\n  Initializing guide..."
+	}
+	header := "📖 Google Drive GCP Setup Guide (Press 'q' or 'Esc' to exit)\n-----------------------------------------------------------"
+	footer := fmt.Sprintf("-----------------------------------------------------------\nScroll: ↑/↓/PgUp/PgDn | %3.f%%", m.viewport.ScrollPercent()*100)
+	return fmt.Sprintf("%s\n%s\n%s", header, m.viewport.View(), footer)
+}
+
+func runGuideViewer() {
+	p := tea.NewProgram(newGuideModel(gcpGuideText), tea.WithAltScreen())
+	if _, err := p.Run(); err != nil {
+		fmt.Printf("Error running guide viewer: %v\n", err)
 	}
 }
 
