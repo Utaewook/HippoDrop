@@ -47,6 +47,16 @@ func NewGoogleDriveAdapter(ctx context.Context, credentialsPath string, rootDir 
 
 func (g *GoogleDriveAdapter) resolveRemotePath(remotePath string) string {
 	cleaned := filepath.Clean(remotePath)
+	// Prevent directory traversal (escaping rootDir) by stripping leading "../" or ".."
+	for strings.HasPrefix(cleaned, "../") || cleaned == ".." {
+		if cleaned == ".." {
+			cleaned = "."
+			break
+		}
+		cleaned = cleaned[3:]
+	}
+	cleaned = strings.TrimPrefix(cleaned, "/")
+
 	joined := filepath.Join("/", g.rootDir, cleaned)
 	return filepath.Clean(joined)
 }
