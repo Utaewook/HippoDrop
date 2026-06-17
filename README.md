@@ -33,6 +33,14 @@ curl -sSL https://raw.githubusercontent.com/Utaewook/Tardis/main/install.sh | sh
 
 This script automatically detects your OS and architecture, downloads the correct binary, and installs it to `/usr/local/bin/tardis`.
 
+### Uninstall
+
+To completely remove Tardis (binary, system configuration, and database) from your system, run:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/Utaewook/Tardis/main/uninstall.sh | sh
+```
+
 ### Manual Download
 
 Download the binary for your platform from the [latest release](https://github.com/Utaewook/Tardis/releases/latest):
