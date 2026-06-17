@@ -18,11 +18,12 @@ import (
 )
 
 type GoogleDriveAdapter struct {
-	srv *drive.Service
-	db  *queue.DB
+	srv     *drive.Service
+	db      *queue.DB
+	rootDir string
 }
 
-func NewGoogleDriveAdapter(ctx context.Context, credentialsPath string, db *queue.DB) (*GoogleDriveAdapter, error) {
+func NewGoogleDriveAdapter(ctx context.Context, credentialsPath string, rootDir string, db *queue.DB) (*GoogleDriveAdapter, error) {
 	b, err := os.ReadFile(credentialsPath)
 	if err != nil {
 		return nil, fmt.Errorf("unable to read credentials file: %v", err)
@@ -33,10 +34,21 @@ func NewGoogleDriveAdapter(ctx context.Context, credentialsPath string, db *queu
 		return nil, fmt.Errorf("unable to retrieve Drive client: %v", err)
 	}
 
+	if rootDir == "" {
+		rootDir = "tardis"
+	}
+
 	return &GoogleDriveAdapter{
-		srv: srv,
-		db:  db,
+		srv:     srv,
+		db:      db,
+		rootDir: rootDir,
 	}, nil
+}
+
+func (g *GoogleDriveAdapter) resolveRemotePath(remotePath string) string {
+	cleaned := filepath.Clean(remotePath)
+	joined := filepath.Join("/", g.rootDir, cleaned)
+	return filepath.Clean(joined)
 }
 
 func (g *GoogleDriveAdapter) Upload(ctx context.Context, localPath, remotePath string) error {
@@ -46,10 +58,11 @@ func (g *GoogleDriveAdapter) Upload(ctx context.Context, localPath, remotePath s
 	}
 	defer f.Close()
 
-	parentPath := filepath.Dir(remotePath)
-	fileName := filepath.Base(remotePath)
+	resolvedPath := g.resolveRemotePath(remotePath)
+	parentPath := filepath.Dir(resolvedPath)
+	fileName := filepath.Base(resolvedPath)
 
-	parentID, err := g.GetPathID(ctx, parentPath)
+	parentID, err := g.GetPathID(ctx, parentPath, true)
 	if err != nil {
 		return fmt.Errorf("failed to get parent ID: %w", err)
 	}
@@ -70,7 +83,8 @@ func (g *GoogleDriveAdapter) Upload(ctx context.Context, localPath, remotePath s
 }
 
 func (g *GoogleDriveAdapter) Download(ctx context.Context, remotePath, localPath string) error {
-	fileID, err := g.GetPathID(ctx, remotePath)
+	resolvedPath := g.resolveRemotePath(remotePath)
+	fileID, err := g.GetPathID(ctx, resolvedPath, false)
 	if err != nil {
 		return fmt.Errorf("failed to get file ID: %w", err)
 	}
@@ -118,7 +132,7 @@ func (g *GoogleDriveAdapter) Download(ctx context.Context, remotePath, localPath
 	return nil
 }
 
-func (g *GoogleDriveAdapter) GetPathID(ctx context.Context, path string) (string, error) {
+func (g *GoogleDriveAdapter) GetPathID(ctx context.Context, path string, createIfMissing bool) (string, error) {
 	if path == "/" || path == "" || path == "." {
 		return "root", nil
 	}
@@ -155,10 +169,23 @@ func (g *GoogleDriveAdapter) GetPathID(ctx context.Context, path string) (string
 		}
 
 		if len(fileList.Files) == 0 {
-			return "", fmt.Errorf("path not found: %s", currentPath)
+			if createIfMissing {
+				newFolder := &drive.File{
+					Name:     part,
+					MimeType: "application/vnd.google-apps.folder",
+					Parents:  []string{currentID},
+				}
+				created, err := g.srv.Files.Create(newFolder).Fields("id").Context(ctx).Do()
+				if err != nil {
+					return "", fmt.Errorf("failed to create missing folder %s: %w", currentPath, err)
+				}
+				currentID = created.Id
+			} else {
+				return "", fmt.Errorf("path not found: %s", currentPath)
+			}
+		} else {
+			currentID = fileList.Files[0].Id
 		}
-
-		currentID = fileList.Files[0].Id
 		
 		// Save to cache
 		_, _ = g.db.ExecContext(ctx, "INSERT OR REPLACE INTO path_cache (path, object_id) VALUES (?, ?)", currentPath, currentID)

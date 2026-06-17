@@ -23,7 +23,7 @@ import (
 	"tardis/internal/worker"
 )
 
-var Version = "v0.1.0-beta.2"
+var Version = "v0.1.0-beta.3"
 
 func getDefaultConfigPath() string {
 	home, err := os.UserHomeDir()
@@ -67,6 +67,7 @@ func printUsage() {
 func runInit() {
 	var provider string
 	var credPath string
+	var rootDir string = "tardis"
 	var confirm bool
 
 	form := huh.NewForm(
@@ -112,6 +113,10 @@ func runInit() {
 					}
 					return nil
 				}),
+			huh.NewInput().
+				Title("Google Drive Root Directory Name (default: tardis):").
+				Value(&rootDir).
+				Placeholder("tardis"),
 			huh.NewConfirm().
 				Title("Ready to save configuration?").
 				Value(&confirm),
@@ -126,6 +131,10 @@ func runInit() {
 	if !confirm {
 		fmt.Println("Setup cancelled.")
 		os.Exit(1)
+	}
+
+	if rootDir == "" {
+		rootDir = "tardis"
 	}
 
 	// Save Configuration
@@ -148,11 +157,12 @@ storage:
     credentials_path: "%s"
     rate_limit_per_second: 10
     retry_max_attempts: 5
+    root_dir: "%s"
 
 workers:
   pool_size: 4
   chunk_size_mb: 10
-`, dataDir, credPath)
+`, dataDir, credPath, rootDir)
 
 	if err := os.WriteFile(cfgPath, []byte(configTemplate), 0644); err != nil {
 		fmt.Printf("\n❌ Failed to save config file: %v\n", err)
@@ -200,7 +210,7 @@ func runStart(args []string) {
 	// 4. Initialize Storage Provider
 	var provider storage.Provider
 	if cfg.Storage.Provider == "google_drive" {
-		provider, err = storage.NewGoogleDriveAdapter(context.Background(), cfg.Storage.GoogleDrive.CredentialsPath, db)
+		provider, err = storage.NewGoogleDriveAdapter(context.Background(), cfg.Storage.GoogleDrive.CredentialsPath, cfg.Storage.GoogleDrive.RootDir, db)
 		if err != nil {
 			log.Fatalf("Failed to initialize Google Drive adapter: %v", err)
 		}

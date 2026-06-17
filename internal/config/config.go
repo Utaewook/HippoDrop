@@ -28,6 +28,7 @@ type GoogleDriveConfig struct {
 	CredentialsPath   string `yaml:"credentials_path"`
 	RateLimitPerSec   int    `yaml:"rate_limit_per_second"`
 	RetryMaxAttempts  int    `yaml:"retry_max_attempts"`
+	RootDir           string `yaml:"root_dir"`
 }
 
 type WorkersConfig struct {
