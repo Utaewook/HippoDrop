@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	_ "embed"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -22,6 +21,7 @@ import (
 	"github.com/charmbracelet/huh"
 
 	"tardis/internal/api"
+	"tardis/internal/assets"
 	"tardis/internal/config"
 	"tardis/internal/queue"
 	"tardis/internal/storage"
@@ -29,9 +29,6 @@ import (
 )
 
 var Version = "dev"
-
-//go:embed gcp_guide.md
-var gcpGuideText string
 
 func getDefaultConfigPath() string {
 	// Priority 1: User-level config (created by `tardis init`)
@@ -580,7 +577,7 @@ func (m guideModel) View() string {
 }
 
 func runGuideViewer() {
-	p := tea.NewProgram(newGuideModel(gcpGuideText), tea.WithAltScreen())
+	p := tea.NewProgram(newGuideModel(assets.GCPGuideText), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Error running guide viewer: %v\n", err)
 	}
