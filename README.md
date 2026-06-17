@@ -23,44 +23,6 @@ Your App ──HTTP──▶ Tardis ──async──▶ Google Drive
          (zero state loss guarantee)
 ```
 
-## ✨ Key Features
-
-- **🔥 Fire-and-Forget API** — Returns `202 Accepted` immediately. Never blocks on cloud I/O.
-- **💾 SQLite-Backed Queue** — All task state persisted before acknowledgement. Zero data loss on crash.
-- **⚡ Async Worker Pool** — Configurable pool of goroutines with Token Bucket rate limiting.
-- **🔄 Auto-Retry with Backoff** — Exponential backoff on failures. Automatic recovery on restart.
-- **🛡️ Graceful Shutdown** — `SIGTERM` → drain in-progress chunks → flush state → clean exit.
-- **📦 Single Binary** — No Redis, no RabbitMQ, no external dependencies. Just one binary.
-- **🧙 TUI Setup Wizard** — Interactive terminal wizard for first-time configuration.
-
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      Tardis Process                         │
-│                                                             │
-│  ┌────────────┐    ┌─────────────┐    ┌───────────────┐    │
-│  │ HTTP Server │──▶│  Task Queue  │◀──│   Scheduler   │    │
-│  │  (API)      │    │  (SQLite)   │    │  (1s poll)    │    │
-│  └────────────┘    └─────────────┘    └───────┬───────┘    │
-│                     ┌─────────────┐           │            │
-│                     │ Path Cache  │           ▼            │
-│                     │  (SQLite)   │   ┌───────────────┐    │
-│                     └─────────────┘   │  Worker Pool  │    │
-│                                       │ (N Goroutines)│    │
-│                                       └───────┬───────┘    │
-│                                               │            │
-│                                       ┌───────▼───────┐    │
-│                                       │   Provider    │    │
-│                                       │  (Interface)  │    │
-│                                       └───────┬───────┘    │
-└───────────────────────────────────────────────┼────────────┘
-                                                │
-                                       ┌────────▼────────┐
-                                       │  Google Drive   │
-                                       └─────────────────┘
-```
-
 ## 📥 Installation
 
 ### Quick Install (Linux / macOS)
@@ -251,25 +213,6 @@ pending ──▶ running ──▶ done
 | Linux | ARM64 | ✅ Supported |
 | macOS | Apple Silicon (arm64) | ✅ Supported |
 | Windows | WSL | ✅ Use Linux binary |
-
-## 📄 Documentation
-
-- [Project Overview](./docs/01_project_overview.md)
-- [Terminology & Concepts](./docs/02_terminology.md)
-- [Architecture & Data Flow](./docs/03_architecture.md)
-- [Go Coding Convention](./docs/04_go_convention.md)
-- [Git & General Convention](./docs/05_convention.md)
-- [Implementation Plan](./docs/06_implementation_plan.md)
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create your feature branch from `develop` (`git checkout -b feature/amazing-feature develop`)
-3. Follow [Conventional Commits](./docs/05_convention.md) for commit messages
-4. Follow the [Go Coding Convention](./docs/04_go_convention.md)
-5. Submit a Pull Request to `develop`
-
-> **Note**: Direct commits to `main` are not allowed. All work happens on `develop`.
 
 ## 📜 License
 
