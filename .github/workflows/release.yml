@@ -40,7 +40,7 @@ jobs:
           fetch-depth: 0
 
       - name: Run GoReleaser Cross
-        uses: docker://goreleaser/goreleaser-cross:v1.25.11
+        uses: docker://ghcr.io/goreleaser/goreleaser-cross:v1.25.11
         with:
           args: release --clean
         env:
