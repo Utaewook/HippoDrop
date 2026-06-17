@@ -8,8 +8,10 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -94,8 +96,6 @@ func runInit() {
 				Title("Choose your cloud storage provider:").
 				Options(
 					huh.NewOption("Google Drive", "Google Drive"),
-					huh.NewOption("Amazon S3 (Coming Soon)", "S3"),
-					huh.NewOption("Dropbox (Coming Soon)", "Dropbox"),
 				).
 				Value(&provider),
 		),
@@ -111,11 +111,21 @@ func runInit() {
 		os.Exit(1)
 	}
 
+	// Try to automatically open the Google Drive API setup page in the browser
+	gcpSetupURL := "https://console.cloud.google.com/apis/library/drive.googleapis.com"
+	_ = openBrowser(gcpSetupURL)
+
 	form2 := huh.NewForm(
 		huh.NewGroup(
 			huh.NewNote().
 				Title("🔑 Google Drive Setup").
-				Description("Tardis needs your GCP Service Account JSON key to operate independently."),
+				Description(fmt.Sprintf(
+					"Tardis needs your GCP Service Account JSON key to operate independently.\n\n"+
+						"Please enable Google Drive API in your GCP project:\n"+
+						"👉 %s\n\n"+
+						"(We have tried opening this link in your default browser.)",
+					gcpSetupURL,
+				)),
 			huh.NewInput().
 				Title("Absolute path to credentials.json:").
 				Value(&credPath).
@@ -296,5 +306,21 @@ func runStart(args []string) {
 
 	// Database is deferred to close at the end of main()
 	log.Println("Tardis shutdown gracefully. Bye!")
+}
+
+// openBrowser attempts to open the specified URL in the default browser based on the OS.
+func openBrowser(url string) error {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+	case "darwin":
+		cmd = exec.Command("open", url)
+	case "linux":
+		cmd = exec.Command("xdg-open", url)
+	default:
+		return fmt.Errorf("unsupported platform")
+	}
+	return cmd.Start()
 }
 
