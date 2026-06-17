@@ -23,7 +23,7 @@ func TestHandler_CreateTask_Success(t *testing.T) {
 	db, teardown := setupTestDB(t)
 	defer teardown()
 
-	handler := NewHandler(db)
+	handler := NewHandler(db, nil)
 	server := httptest.NewServer(http.HandlerFunc(handler.handleUpload))
 	defer server.Close()
 
@@ -67,7 +67,7 @@ func TestHandler_CreateTask_MissingFields(t *testing.T) {
 	db, teardown := setupTestDB(t)
 	defer teardown()
 
-	handler := NewHandler(db)
+	handler := NewHandler(db, nil)
 	server := httptest.NewServer(http.HandlerFunc(handler.handleUpload))
 	defer server.Close()
 
@@ -92,7 +92,7 @@ func TestHandler_CreateTask_InvalidJSON(t *testing.T) {
 	db, teardown := setupTestDB(t)
 	defer teardown()
 
-	handler := NewHandler(db)
+	handler := NewHandler(db, nil)
 	server := httptest.NewServer(http.HandlerFunc(handler.handleUpload))
 	defer server.Close()
 
@@ -120,7 +120,7 @@ func TestHandler_GetTask(t *testing.T) {
 		t.Fatalf("failed to insert test task: %v", err)
 	}
 
-	handler := NewHandler(db)
+	handler := NewHandler(db, nil)
 	mux := http.NewServeMux()
 	handler.RegisterRoutes(mux)
 
