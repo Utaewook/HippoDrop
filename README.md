@@ -43,14 +43,6 @@ Download the binary for your platform from the [latest release](https://github.c
 | Linux | ARM64 | [`tardis-linux-arm64`](https://github.com/Utaewook/Tardis/releases/latest/download/tardis-linux-arm64) |
 | macOS | Apple Silicon | [`tardis-darwin-arm64`](https://github.com/Utaewook/Tardis/releases/latest/download/tardis-darwin-arm64) |
 
-> **Windows users**: Use [WSL (Windows Subsystem for Linux)](https://learn.microsoft.com/en-us/windows/wsl/) and install the Linux binary.
-
-```bash
-# Example: Linux x86_64
-curl -sSL -o tardis https://github.com/Utaewook/Tardis/releases/latest/download/tardis-linux-amd64
-chmod +x tardis
-sudo mv tardis /usr/local/bin/
-```
 
 ### Build from Source
 
