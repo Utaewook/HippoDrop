@@ -32,27 +32,26 @@ The fixed set of Goroutines (count = `workers.pool_size` from config) that conti
 - Workers are long-lived; they are not spawned per-task.
 - Worker count is set at startup and does not change at runtime.
 
-> [!NOTE]
-> Whether workers use a shared channel or poll the DB directly is an open design decision. Invoke `/grill-me` if this has not been resolved.
+Workers consume Tasks from a Go Channel fed by the Scheduler.
 
 ---
 
-### Storage Provider
-The abstraction layer (`StorageProvider` Go interface) that isolates all cloud-specific communication from the Worker Pool. Defines the canonical operations:
+### Provider (Storage Provider)
+The abstraction layer (`Provider` Go interface in `internal/storage/provider.go`) that isolates all cloud-specific communication from the Worker Pool. Defines the canonical operations:
 
 | Method | Description |
 |---|---|
 | `Upload(ctx, localPath, remotePath)` | Transfer a local file to cloud storage |
 | `Download(ctx, remotePath, localPath)` | Fetch a remote file to a local path |
-| `GetPathID(ctx, path)` | Resolve a human-readable path string to a cloud-native object ID |
+| `GetPathID(ctx, path, createIfMissing)` | Resolve a human-readable path string to a cloud-native object ID. Create missing folders if `createIfMissing` is true. |
 
 - **Initial implementation:** `GoogleDriveAdapter`
-- **Constraint:** No Worker Pool code may import or reference a concrete adapter directly. Only the `StorageProvider` interface may be used.
+- **Constraint:** No Worker Pool code may import or reference a concrete adapter directly. Only the `Provider` interface may be used.
 
 ---
 
 ### GoogleDriveAdapter
-The concrete implementation of `StorageProvider` for Google Drive. Responsibilities:
+The concrete implementation of `Provider` for Google Drive. Responsibilities:
 
 - Manage OAuth2 Refresh Token → Access Token renewal.
 - Apply chunked upload for large files (`chunk_size_mb` from config).
@@ -79,8 +78,7 @@ The Token Bucket algorithm implementation embedded in the Worker Pool. Enforces 
 ### Scheduler
 The internal component responsible for polling the Task Queue and dispatching Tasks to available Workers. The Scheduler is not a separate process — it runs as a Goroutine within the single Tardis binary.
 
-> [!NOTE]
-> The boundary between the Scheduler and the Worker Pool (e.g., does the Scheduler push to a channel, or do Workers pull directly?) is an open design decision. Invoke `/grill-me` to resolve before implementation.
+The Scheduler polls the Task Queue (1-second interval) and pushes Tasks to a Go Channel for Workers to consume. Before dispatching, it updates the Task status to `running` using optimistic locking (`WHERE status = 'pending'`) to prevent duplicate dispatch.
 
 ---
 
@@ -114,17 +112,17 @@ The local filesystem directory where Tardis stores its embedded SQLite database 
 
 ---
 
-## Open Design Questions (Invoke `/grill-me`)
+## Resolved Design Decisions
 
-The following terms/concepts exist in the design but their implementation details are not yet finalized. **Do not implement them without first running a `/grill-me` session to resolve the decision.**
+The following design questions have been resolved during implementation.
 
-| Term | Open Question |
+| Term | Resolution |
 |---|---|
-| **Worker dispatch model** | Push via channel from Scheduler, or Workers poll SQLite directly? |
-| **SQLite driver** | `modernc.org/sqlite` (pure Go, no CGO) vs `mattn/go-sqlite3` (CGO, more mature)? |
-| **Retry state reset** | On startup, should `running` tasks be reset to `pending` automatically? |
-| **Prefetch API** | What is the exact API contract for requesting a background download (prefetch)? |
-| **Status query API** | What is the exact response schema for `GET /tasks/{task_id}`? |
+| **Worker dispatch model** | Scheduler polls SQLite → pushes to Go Channel for Workers. (Resolved) |
+| **SQLite driver** | `github.com/mattn/go-sqlite3` (CGO). (Resolved) |
+| **Retry state reset** | Yes — on startup, all `running` tasks are automatically reset to `pending`. See `recoverTasks()` in `internal/queue/db.go`. (Resolved) |
+| **Prefetch API** | `POST /download` with `{"remote_path": "...", "local_path": "..."}` → `202 Accepted` + `task_id`. (Resolved) |
+| **Status query API** | `GET /tasks/{task_id}` returns full metadata: `task_id`, `type`, `local_path`, `remote_path`, `status`, `retry_count`, `error_msg`, `created_at`. (Resolved) |
 
 ---
 

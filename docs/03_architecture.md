@@ -100,7 +100,7 @@ CREATE TABLE path_cache (
 
 - `N` long-lived Goroutines, where `N = workers.pool_size` from `tardis.yml`.
 - Each Worker:
-  1. Acquires a Task from the Scheduler (or polls the queue — TBD).
+  1. Acquires a Task from the Scheduler via a Go Channel.
   2. Updates Task `status` to `running` in SQLite.
   3. Acquires a Rate Limiter token before each API call.
   4. Calls the `StorageProvider` interface methods to execute the upload or download.
@@ -109,15 +109,15 @@ CREATE TABLE path_cache (
 
 ---
 
-### 2.6. StorageProvider Interface
+### 2.6. Provider Interface
 
 ```go
-// StorageProvider defines the contract for all cloud storage backends.
+// Provider defines the contract for all cloud storage backends.
 // All Worker Pool code interacts with cloud storage exclusively via this interface.
-type StorageProvider interface {
+type Provider interface {
     Upload(ctx context.Context, localPath, remotePath string) error
     Download(ctx context.Context, remotePath, localPath string) error
-    GetPathID(ctx context.Context, path string) (string, error)
+    GetPathID(ctx context.Context, path string, createIfMissing bool) (string, error)
 }
 ```
 

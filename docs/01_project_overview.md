@@ -29,13 +29,12 @@ Tardis ships as a **single standalone binary** — no runtime dependencies, no e
 | Layer | Technology | Notes |
 |---|---|---|
 | **Language** | Go (Golang) | Cross-compile, static linking, Goroutine-native concurrency |
-| **Embedded DB** | SQLite (via `modernc.org/sqlite` or `mattn/go-sqlite3`) | Task queue persistence + path-ID mapping cache |
+| **Embedded DB** | SQLite (via `github.com/mattn/go-sqlite3`, CGO) | Task queue persistence + path-ID mapping cache |
 | **Configuration** | YAML (`tardis.yml`) | Injected at startup via `-c` flag |
 | **Deployment** | Native OS binary + `scratch`-based Docker container | No base OS layer in container |
-| **Initial Storage Provider** | Google Drive API (OAuth2 Refresh Token flow) | Abstracted behind `StorageProvider` interface |
+| **CLI** | `tardis init` (TUI setup wizard) / `tardis start` | Interactive config generation + daemon startup |
+| **Initial Storage Provider** | Google Drive API (OAuth2 Refresh Token flow) | Abstracted behind `Provider` interface |
 
-> [!NOTE]
-> The specific SQLite driver (`modernc` vs `mattn`) is an open design decision. See [02_terminology.md](./02_terminology.md) for the trade-off summary. Invoke `/grill-me` if this has not been resolved.
 
 ---
 
