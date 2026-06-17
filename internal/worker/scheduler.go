@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"log"
+	"sync/atomic"
 	"time"
 
 	"tardis/internal/queue"
@@ -12,6 +13,7 @@ import (
 type Scheduler struct {
 	db       *queue.DB
 	taskChan chan *queue.Task
+	paused   atomic.Bool
 }
 
 func NewScheduler(db *queue.DB, taskChan chan *queue.Task) *Scheduler {
@@ -19,6 +21,20 @@ func NewScheduler(db *queue.DB, taskChan chan *queue.Task) *Scheduler {
 		db:       db,
 		taskChan: taskChan,
 	}
+}
+
+func (s *Scheduler) Pause() {
+	s.paused.Store(true)
+	log.Println("Scheduler paused")
+}
+
+func (s *Scheduler) Resume() {
+	s.paused.Store(false)
+	log.Println("Scheduler resumed")
+}
+
+func (s *Scheduler) IsPaused() bool {
+	return s.paused.Load()
 }
 
 // Start begins the polling loop. It runs until ctx is canceled.
@@ -38,6 +54,9 @@ func (s *Scheduler) Start(ctx context.Context) {
 }
 
 func (s *Scheduler) dispatchPendingTasks(ctx context.Context) {
+	if s.IsPaused() {
+		return
+	}
 	// Query pending tasks (limit to channel capacity to avoid blocking too long)
 	limit := cap(s.taskChan)
 	rows, err := s.db.QueryContext(ctx, "SELECT task_id, type, local_path, remote_path, status, retry_count FROM tasks WHERE status = 'pending' ORDER BY created_at ASC LIMIT ?", limit)

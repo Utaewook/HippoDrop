@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -59,16 +60,32 @@ func main() {
 		case "start":
 			runStart(os.Args[2:])
 			return
+		case "status":
+			runStatus()
+			return
+		case "stop":
+			runStop()
+			return
+		case "pause":
+			runPause()
+			return
+		case "resume":
+			runResume()
+			return
 		case "--version", "-v":
 			fmt.Printf("Tardis %s\n", Version)
 			return
 		case "--help", "-h":
 			printUsage()
 			return
+		default:
+			fmt.Printf("❌ Unknown command: %s\n\n", os.Args[1])
+			printUsage()
+			os.Exit(1)
 		}
 	}
 
-	runStart(os.Args[1:])
+	printUsage()
 }
 
 func printUsage() {
@@ -77,6 +94,10 @@ func printUsage() {
 	fmt.Println("  tardis init          Launch full-screen setup wizard")
 	fmt.Println("  tardis start         Start the daemon (uses default ~/.tardis/config.yml)")
 	fmt.Println("  tardis start -c ...  Start with a custom config path")
+	fmt.Println("  tardis status        Check the daemon running status")
+	fmt.Println("  tardis stop          Stop the running daemon gracefully")
+	fmt.Println("  tardis pause         Pause dispatching new tasks")
+	fmt.Println("  tardis resume        Resume dispatching tasks")
 	fmt.Println("  tardis --version     Show version")
 	fmt.Println("  tardis --help        Show help")
 }
@@ -213,6 +234,13 @@ func runStart(args []string) {
 		os.Exit(1)
 	}
 
+	// Write PID file and check duplication
+	if err := writePIDFile(); err != nil {
+		fmt.Printf("❌ %v\n", err)
+		os.Exit(1)
+	}
+	defer removePIDFile()
+
 	fmt.Println("🚀 Tardis Cloud Storage Proxy Daemon starting...")
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -263,7 +291,7 @@ func runStart(args []string) {
 
 	// 8. Setup HTTP API
 	mux := http.NewServeMux()
-	handler := api.NewHandler(db)
+	handler := api.NewHandler(db, scheduler)
 	handler.RegisterRoutes(mux)
 
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
@@ -322,5 +350,146 @@ func openBrowser(url string) error {
 		return fmt.Errorf("unsupported platform")
 	}
 	return cmd.Start()
+}
+
+// getPIDFilePath returns the path to the PID file.
+func getPIDFilePath() string {
+	if home, err := os.UserHomeDir(); err == nil {
+		return filepath.Join(home, ".tardis", "tardis.pid")
+	}
+	return "./tardis.pid"
+}
+
+// writePIDFile writes the current PID to the PID file if it is not already running.
+func writePIDFile() error {
+	pidPath := getPIDFilePath()
+	if data, err := os.ReadFile(pidPath); err == nil {
+		var pid int
+		if _, scanErr := fmt.Sscanf(string(data), "%d", &pid); scanErr == nil {
+			if isProcessRunning(pid) {
+				return fmt.Errorf("tardis daemon is already running (PID: %d)", pid)
+			}
+		}
+	}
+
+	if err := os.MkdirAll(filepath.Dir(pidPath), 0755); err != nil {
+		return err
+	}
+
+	return os.WriteFile(pidPath, []byte(fmt.Sprintf("%d", os.Getpid())), 0644)
+}
+
+// removePIDFile removes the PID file.
+func removePIDFile() {
+	_ = os.Remove(getPIDFilePath())
+}
+
+// isProcessRunning checks if the process with the given PID is running.
+func isProcessRunning(pid int) bool {
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return false
+	}
+	return isProcessAlive(proc)
+}
+
+// isProcessAlive returns true if the process is alive.
+func isProcessAlive(p *os.Process) bool {
+	if runtime.GOOS == "windows" {
+		err := p.Signal(os.Interrupt)
+		return err == nil || !errors.Is(err, os.ErrProcessDone)
+	}
+	err := p.Signal(syscall.Signal(0))
+	return err == nil
+}
+
+// getDaemonPort loads the port from default config or returns 8080.
+func getDaemonPort() int {
+	cfgPath := getDefaultConfigPath()
+	if cfg, err := config.Load(cfgPath); err == nil {
+		if cfg.Server.Port != 0 {
+			return cfg.Server.Port
+		}
+	}
+	return 8080
+}
+
+func runStatus() {
+	port := getDaemonPort()
+	url := fmt.Sprintf("http://localhost:%d/status", port)
+
+	resp, err := http.Get(url)
+	if err != nil {
+		pidPath := getPIDFilePath()
+		if _, statErr := os.Stat(pidPath); statErr == nil {
+			fmt.Println("⚠️  PID file exists but daemon is not responding. (Status: Stale)")
+		} else {
+			fmt.Println("ℹ️  Tardis daemon is not running.")
+		}
+		return
+	}
+	defer resp.Body.Close()
+
+	var res map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		fmt.Printf("❌ Failed to parse status response: %v\n", err)
+		return
+	}
+
+	fmt.Printf("● Tardis Daemon Status: %v (PID: %v)\n", res["status"], res["pid"])
+}
+
+func runStop() {
+	port := getDaemonPort()
+	url := fmt.Sprintf("http://localhost:%d/stop", port)
+
+	resp, err := http.Post(url, "application/json", nil)
+	if err != nil {
+		fmt.Printf("❌ Failed to contact daemon: %v (Is it running?)\n", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		fmt.Println("🛑 Shutdown signal sent to Tardis daemon.")
+	} else {
+		fmt.Printf("❌ Shutdown request failed with status: %d\n", resp.StatusCode)
+	}
+}
+
+func runPause() {
+	port := getDaemonPort()
+	url := fmt.Sprintf("http://localhost:%d/pause", port)
+
+	resp, err := http.Post(url, "application/json", nil)
+	if err != nil {
+		fmt.Printf("❌ Failed to contact daemon: %v\n", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		fmt.Println("⏸️  Tardis daemon has been paused.")
+	} else {
+		fmt.Printf("❌ Pause request failed with status: %d\n", resp.StatusCode)
+	}
+}
+
+func runResume() {
+	port := getDaemonPort()
+	url := fmt.Sprintf("http://localhost:%d/resume", port)
+
+	resp, err := http.Post(url, "application/json", nil)
+	if err != nil {
+		fmt.Printf("❌ Failed to contact daemon: %v\n", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		fmt.Println("▶️  Tardis daemon has been resumed.")
+	} else {
+		fmt.Printf("❌ Resume request failed with status: %d\n", resp.StatusCode)
+	}
 }
 

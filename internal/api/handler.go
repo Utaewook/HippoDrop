@@ -4,24 +4,39 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/google/uuid"
 	"tardis/internal/queue"
 )
 
-type Handler struct {
-	db *queue.DB
+type TaskScheduler interface {
+	Pause()
+	Resume()
+	IsPaused() bool
 }
 
-func NewHandler(db *queue.DB) *Handler {
-	return &Handler{db: db}
+type Handler struct {
+	db        *queue.DB
+	scheduler TaskScheduler
+}
+
+func NewHandler(db *queue.DB, scheduler TaskScheduler) *Handler {
+	return &Handler{
+		db:        db,
+		scheduler: scheduler,
+	}
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /upload", h.handleUpload)
 	mux.HandleFunc("POST /download", h.handleDownload)
 	mux.HandleFunc("GET /tasks/{task_id}", h.handleGetTask)
+	mux.HandleFunc("GET /status", h.handleStatus)
+	mux.HandleFunc("POST /stop", h.handleStop)
+	mux.HandleFunc("POST /pause", h.handlePause)
+	mux.HandleFunc("POST /resume", h.handleResume)
 }
 
 type TaskRequest struct {
@@ -107,4 +122,48 @@ func (h *Handler) handleGetTask(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(ts)
+}
+
+func (h *Handler) handleStatus(w http.ResponseWriter, r *http.Request) {
+	status := "running"
+	if h.scheduler != nil && h.scheduler.IsPaused() {
+		status = "paused"
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"status": status,
+		"pid":    os.Getpid(),
+	})
+}
+
+func (h *Handler) handleStop(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]string{"message": "shutdown initiated"})
+
+	// Send Interrupt signal to self to trigger graceful shutdown cross-platform
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		p, err := os.FindProcess(os.Getpid())
+		if err == nil {
+			_ = p.Signal(os.Interrupt)
+		}
+	}()
+}
+
+func (h *Handler) handlePause(w http.ResponseWriter, r *http.Request) {
+	if h.scheduler != nil {
+		h.scheduler.Pause()
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "paused"})
+}
+
+func (h *Handler) handleResume(w http.ResponseWriter, r *http.Request) {
+	if h.scheduler != nil {
+		h.scheduler.Resume()
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "running"})
 }
