@@ -146,8 +146,7 @@ func runInit() {
 						"1. Enable Google Drive API in your GCP project:\n"+
 						"   👉 %s\n"+
 						"2. Create a Service Account in IAM, generate a JSON key, and download it.\n"+
-						"3. In Google Drive, create a folder and share it with your Service Account's email.\n\n"+
-						"(We have tried opening the step 1 link in your default browser.)",
+						"3. In Google Drive, create a folder and share it with your Service Account's email.",
 					gcpSetupURL,
 				)),
 			huh.NewInput().
