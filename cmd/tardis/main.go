@@ -548,6 +548,12 @@ func arrowKeyMap() *huh.KeyMap {
 	km.Confirm.Next = nextKeys
 	km.Confirm.Prev = prevKeys
 
+	// Add Esc support to quit form wizard
+	km.Quit = key.NewBinding(
+		key.WithKeys("ctrl+c", "esc"),
+		key.WithHelp("esc", "quit"),
+	)
+
 	return km
 }
 
@@ -571,7 +577,7 @@ func (m credSetupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Intercept '?' to open guide viewer inline (blocks until user exits viewer)
 			runGuideViewer()
 			return m, nil
-		case "ctrl+c":
+		case "ctrl+c", "esc":
 			m.quitting = true
 			return m, tea.Quit
 		}
@@ -593,7 +599,7 @@ func (m credSetupModel) View() string {
 	if m.quitting {
 		return ""
 	}
-	footer := "\n  \033[2m[?] setup guide   [ctrl+c] quit\033[0m"
+	footer := "\n  \033[2m[?] setup guide   [Esc] quit\033[0m"
 	return m.form.View() + footer
 }
 
