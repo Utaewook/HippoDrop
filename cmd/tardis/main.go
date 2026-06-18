@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
@@ -122,7 +123,7 @@ func runInit() {
 				).
 				Value(&provider),
 		),
-	).WithProgramOptions(tea.WithAltScreen())
+	).WithKeyMap(arrowKeyMap()).WithProgramOptions(tea.WithAltScreen())
 
 	if err := form.Run(); err != nil {
 		fmt.Println("Wizard aborted.")
@@ -171,7 +172,7 @@ func runInit() {
 					Title("Ready to save configuration?").
 					Value(&confirm),
 			),
-		).WithProgramOptions(tea.WithAltScreen())
+		).WithKeyMap(arrowKeyMap()).WithProgramOptions(tea.WithAltScreen())
 
 		if err := form2.Run(); err != nil {
 			fmt.Println("Wizard aborted.")
@@ -581,5 +582,29 @@ func runGuideViewer() {
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Error running guide viewer: %v\n", err)
 	}
+}
+
+// arrowKeyMap returns a huh KeyMap that allows arrow keys (↑/↓) to navigate
+// between form fields in addition to the default Tab / Shift+Tab bindings.
+func arrowKeyMap() *huh.KeyMap {
+	km := huh.NewDefaultKeyMap()
+
+	nextKeys := key.NewBinding(
+		key.WithKeys("tab", "down"),
+		key.WithHelp("↓/tab", "next"),
+	)
+	prevKeys := key.NewBinding(
+		key.WithKeys("shift+tab", "up"),
+		key.WithHelp("↑/shift+tab", "prev"),
+	)
+
+	km.Input.Next = nextKeys
+	km.Input.Prev = prevKeys
+	km.Note.Next = nextKeys
+	km.Note.Prev = prevKeys
+	km.Confirm.Next = nextKeys
+	km.Confirm.Prev = prevKeys
+
+	return km
 }
 
