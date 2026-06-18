@@ -3,7 +3,6 @@ set -e
 
 # Configuration
 BIN_DIR="/usr/local/bin"
-CONFIG_DIR="/etc/tardis"
 BINARY_NAME="tardis"
 
 # Determine if sudo is needed and available
@@ -32,12 +31,6 @@ fi
 if [ -f "${BIN_DIR}/${BINARY_NAME}" ]; then
     echo "Removing binary from ${BIN_DIR}/${BINARY_NAME}..."
     $SUDO rm "${BIN_DIR}/${BINARY_NAME}"
-fi
-
-# Remove system configuration directory
-if [ -d "${CONFIG_DIR}" ]; then
-    echo "Removing configuration directory from ${CONFIG_DIR}..."
-    $SUDO rm -rf "${CONFIG_DIR}"
 fi
 
 # Clean up user level configuration directory (~/.tardis)

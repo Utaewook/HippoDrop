@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -13,6 +12,8 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -31,50 +32,24 @@ import (
 
 var Version = "dev"
 
-func getDefaultConfigPath() string {
-	// Priority 1: User-level config (created by `tardis init`)
+func getProjectDir(projectName string) string {
 	if home, err := os.UserHomeDir(); err == nil {
-		userConfig := filepath.Join(home, ".tardis", "config.yml")
-		if _, err := os.Stat(userConfig); err == nil {
-			return userConfig
-		}
+		return filepath.Join(home, ".tardis", "projects", projectName)
 	}
+	return fmt.Sprintf("./.tardis/projects/%s", projectName)
+}
 
-	// Priority 2: System-level config (created by `install.sh` or `make install`)
-	systemConfig := "/etc/tardis/tardis.yml"
-	if _, err := os.Stat(systemConfig); err == nil {
-		return systemConfig
-	}
+func getProjectConfigPath(projectName string) string {
+	return filepath.Join(getProjectDir(projectName), "config.yml")
+}
 
-	// Fallback: user-level path (will trigger "run tardis init" message if missing)
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "./tardis.yml"
-	}
-	return filepath.Join(home, ".tardis", "config.yml")
+func getPIDFilePath(projectName string) string {
+	return filepath.Join(getProjectDir(projectName), "tardis.pid")
 }
 
 func main() {
-	if len(os.Args) > 1 {
+	if len(os.Args) == 2 {
 		switch os.Args[1] {
-		case "init":
-			runInit()
-			return
-		case "start":
-			runStart(os.Args[2:])
-			return
-		case "status":
-			runStatus()
-			return
-		case "stop":
-			runStop()
-			return
-		case "pause":
-			runPause()
-			return
-		case "resume":
-			runResume()
-			return
 		case "--version", "-v":
 			fmt.Printf("Tardis %s\n", Version)
 			return
@@ -82,40 +57,95 @@ func main() {
 			printUsage()
 			return
 		default:
-			fmt.Printf("❌ Unknown command: %s\n\n", os.Args[1])
+			fmt.Printf("❌ Unknown command or missing project name.\n\n")
 			printUsage()
 			os.Exit(1)
 		}
+	} else if len(os.Args) < 3 {
+		printUsage()
+		os.Exit(1)
 	}
 
-	printUsage()
+	command := os.Args[1]
+	projectName := os.Args[2]
+
+	if strings.TrimSpace(projectName) == "" {
+		fmt.Println("❌ Project name cannot be empty.")
+		printUsage()
+		os.Exit(1)
+	}
+
+	switch command {
+	case "init":
+		runInit(projectName)
+	case "start":
+		runStart(projectName)
+	case "status":
+		runStatus(projectName)
+	case "stop":
+		runStop(projectName)
+	case "pause":
+		runPause(projectName)
+	case "resume":
+		runResume(projectName)
+	default:
+		fmt.Printf("❌ Unknown command: %s\n\n", command)
+		printUsage()
+		os.Exit(1)
+	}
 }
 
 func printUsage() {
 	fmt.Println("🚀 Tardis Cloud Storage Proxy Daemon")
 	fmt.Println("\nUsage:")
-	fmt.Println("  tardis init          Launch full-screen setup wizard")
-	fmt.Println("  tardis start         Start the daemon (uses default ~/.tardis/config.yml)")
-	fmt.Println("  tardis start -c ...  Start with a custom config path")
-	fmt.Println("  tardis status        Check the daemon running status")
-	fmt.Println("  tardis stop          Stop the running daemon gracefully")
-	fmt.Println("  tardis pause         Pause dispatching new tasks")
-	fmt.Println("  tardis resume        Resume dispatching tasks")
-	fmt.Println("  tardis --version     Show version")
-	fmt.Println("  tardis --help        Show help")
+	fmt.Println("  tardis init <project>     Launch setup wizard for a new project")
+	fmt.Println("  tardis start <project>    Start the daemon for the project")
+	fmt.Println("  tardis status <project>   Check the daemon running status")
+	fmt.Println("  tardis stop <project>     Stop the running daemon gracefully")
+	fmt.Println("  tardis pause <project>    Pause dispatching new tasks")
+	fmt.Println("  tardis resume <project>   Resume dispatching tasks")
+	fmt.Println("  tardis --version          Show version")
+	fmt.Println("  tardis --help             Show help")
 }
 
-func runInit() {
+func getNextAvailablePort() int {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return 8080
+	}
+	projectsDir := filepath.Join(home, ".tardis", "projects")
+	
+	highestPort := 8079
+	entries, err := os.ReadDir(projectsDir)
+	if err != nil {
+		return 8080 // directory might not exist yet
+	}
+	
+	for _, entry := range entries {
+		if entry.IsDir() {
+			cfgPath := filepath.Join(projectsDir, entry.Name(), "config.yml")
+			if cfg, err := config.Load(cfgPath); err == nil {
+				if cfg.Server.Port > highestPort {
+					highestPort = cfg.Server.Port
+				}
+			}
+		}
+	}
+	return highestPort + 1
+}
+
+func runInit(projectName string) {
 	var provider string
 	var credPath string
-	var rootDir string = "tardis"
+	var portStr = fmt.Sprintf("%d", getNextAvailablePort())
+	var rootDir string = projectName
 	var confirm bool
 
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewNote().
 				Title("✨ Tardis Setup Wizard ✨").
-				Description("Welcome! Let's configure your decentralized cloud storage gateway.\nPress Enter to continue."),
+				Description(fmt.Sprintf("Welcome! Let's configure your project '%s'.\nPress Enter to continue.", projectName)),
 			huh.NewSelect[string]().
 				Title("Choose your cloud storage provider:").
 				Options(
@@ -139,7 +169,7 @@ func runInit() {
 	gcpSetupURL := "https://console.cloud.google.com/apis/library/drive.googleapis.com"
 	_ = openBrowser(gcpSetupURL)
 
-	if !runCredSetup(&credPath, &rootDir, &confirm, gcpSetupURL) {
+	if !runCredSetup(&credPath, &rootDir, &portStr, &confirm, gcpSetupURL) {
 		fmt.Println("Wizard aborted.")
 		os.Exit(1)
 	}
@@ -150,11 +180,17 @@ func runInit() {
 	}
 
 	if rootDir == "" {
-		rootDir = "tardis"
+		rootDir = projectName
+	}
+	
+	port, err := strconv.Atoi(portStr)
+	if err != nil || port <= 0 {
+		fmt.Printf("❌ Invalid port number: %s\n", portStr)
+		os.Exit(1)
 	}
 
 	// Save Configuration
-	cfgPath := getDefaultConfigPath()
+	cfgPath := getProjectConfigPath(projectName)
 	cfgDir := filepath.Dir(cfgPath)
 
 	if err := os.MkdirAll(cfgDir, 0755); err != nil {
@@ -164,7 +200,7 @@ func runInit() {
 
 	dataDir := filepath.Join(cfgDir, "data")
 	configTemplate := fmt.Sprintf(`server:
-  port: 8080
+  port: %d
   data_dir: "%s"
 
 storage:
@@ -178,46 +214,43 @@ storage:
 workers:
   pool_size: 4
   chunk_size_mb: 10
-`, dataDir, credPath, rootDir)
+`, port, dataDir, credPath, rootDir)
 
 	if err := os.WriteFile(cfgPath, []byte(configTemplate), 0644); err != nil {
 		fmt.Printf("\n❌ Failed to save config file: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("\n✅ Success! Tardis is ready to run.\n")
+	fmt.Printf("\n✅ Success! Project '%s' is ready to run.\n", projectName)
 	fmt.Printf("📂 Configuration saved to: %s\n", cfgPath)
 	fmt.Println("\nYou can now start the daemon by running:")
-	fmt.Println("👉  tardis start")
+	fmt.Printf("👉  tardis start %s\n", projectName)
 }
 
-func runStart(args []string) {
-	defaultCfg := getDefaultConfigPath()
-	startCmd := flag.NewFlagSet("start", flag.ExitOnError)
-	configPath := startCmd.String("c", defaultCfg, "path to config file")
-	startCmd.Parse(args)
+func runStart(projectName string) {
+	configPath := getProjectConfigPath(projectName)
 
 	// Check if config exists
-	if _, err := os.Stat(*configPath); os.IsNotExist(err) {
-		fmt.Printf("❌ Config file not found at %s\n", *configPath)
-		fmt.Println("💡 Please run 'tardis init' first to generate a configuration.")
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		fmt.Printf("❌ Config file not found at %s\n", configPath)
+		fmt.Printf("💡 Please run 'tardis init %s' first to generate a configuration.\n", projectName)
 		os.Exit(1)
 	}
 
 	// Write PID file and check duplication
-	if err := writePIDFile(); err != nil {
+	if err := writePIDFile(projectName); err != nil {
 		fmt.Printf("❌ %v\n", err)
 		os.Exit(1)
 	}
-	defer removePIDFile()
+	defer removePIDFile(projectName)
 
-	fmt.Println("🚀 Tardis Cloud Storage Proxy Daemon starting...")
+	fmt.Printf("🚀 Tardis Daemon starting for project '%s'...\n", projectName)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	// 2. Load Configuration
-	cfg, err := config.Load(*configPath)
+	cfg, err := config.Load(configPath)
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
@@ -297,16 +330,14 @@ func runStart(args []string) {
 		log.Println("HTTP server stopped.")
 	}
 
-	// Wait for ongoing worker tasks to complete (Wait implicitly waits because context is canceled, but waitgroup tracks completion)
+	// Wait for ongoing worker tasks to complete
 	log.Println("Waiting for workers to finish current chunks...")
 	pool.Wait()
 	log.Println("Workers finished.")
 
-	// Database is deferred to close at the end of main()
 	log.Println("Tardis shutdown gracefully. Bye!")
 }
 
-// openBrowser attempts to open the specified URL in the default browser based on the OS.
 func openBrowser(url string) error {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
@@ -322,22 +353,13 @@ func openBrowser(url string) error {
 	return cmd.Start()
 }
 
-// getPIDFilePath returns the path to the PID file.
-func getPIDFilePath() string {
-	if home, err := os.UserHomeDir(); err == nil {
-		return filepath.Join(home, ".tardis", "tardis.pid")
-	}
-	return "./tardis.pid"
-}
-
-// writePIDFile writes the current PID to the PID file if it is not already running.
-func writePIDFile() error {
-	pidPath := getPIDFilePath()
+func writePIDFile(projectName string) error {
+	pidPath := getPIDFilePath(projectName)
 	if data, err := os.ReadFile(pidPath); err == nil {
 		var pid int
 		if _, scanErr := fmt.Sscanf(string(data), "%d", &pid); scanErr == nil {
 			if isProcessRunning(pid) {
-				return fmt.Errorf("tardis daemon is already running (PID: %d)", pid)
+				return fmt.Errorf("tardis daemon is already running for project '%s' (PID: %d)", projectName, pid)
 			}
 		}
 	}
@@ -349,12 +371,10 @@ func writePIDFile() error {
 	return os.WriteFile(pidPath, []byte(fmt.Sprintf("%d", os.Getpid())), 0644)
 }
 
-// removePIDFile removes the PID file.
-func removePIDFile() {
-	_ = os.Remove(getPIDFilePath())
+func removePIDFile(projectName string) {
+	_ = os.Remove(getPIDFilePath(projectName))
 }
 
-// isProcessRunning checks if the process with the given PID is running.
 func isProcessRunning(pid int) bool {
 	proc, err := os.FindProcess(pid)
 	if err != nil {
@@ -363,7 +383,6 @@ func isProcessRunning(pid int) bool {
 	return isProcessAlive(proc)
 }
 
-// isProcessAlive returns true if the process is alive.
 func isProcessAlive(p *os.Process) bool {
 	if runtime.GOOS == "windows" {
 		err := p.Signal(os.Interrupt)
@@ -373,28 +392,31 @@ func isProcessAlive(p *os.Process) bool {
 	return err == nil
 }
 
-// getDaemonPort loads the port from default config or returns 8080.
-func getDaemonPort() int {
-	cfgPath := getDefaultConfigPath()
+func getDaemonPort(projectName string) (int, error) {
+	cfgPath := getProjectConfigPath(projectName)
 	if cfg, err := config.Load(cfgPath); err == nil {
 		if cfg.Server.Port != 0 {
-			return cfg.Server.Port
+			return cfg.Server.Port, nil
 		}
 	}
-	return 8080
+	return 0, fmt.Errorf("could not load config for project %s", projectName)
 }
 
-func runStatus() {
-	port := getDaemonPort()
+func runStatus(projectName string) {
+	port, err := getDaemonPort(projectName)
+	if err != nil {
+		fmt.Printf("❌ %v\n", err)
+		return
+	}
 	url := fmt.Sprintf("http://localhost:%d/status", port)
 
 	resp, err := http.Get(url)
 	if err != nil {
-		pidPath := getPIDFilePath()
+		pidPath := getPIDFilePath(projectName)
 		if _, statErr := os.Stat(pidPath); statErr == nil {
 			fmt.Println("⚠️  PID file exists but daemon is not responding. (Status: Stale)")
 		} else {
-			fmt.Println("ℹ️  Tardis daemon is not running.")
+			fmt.Printf("ℹ️  Tardis daemon for project '%s' is not running.\n", projectName)
 		}
 		return
 	}
@@ -406,11 +428,15 @@ func runStatus() {
 		return
 	}
 
-	fmt.Printf("● Tardis Daemon Status: %v (PID: %v)\n", res["status"], res["pid"])
+	fmt.Printf("● Project '%s' Status: %v (PID: %v)\n", projectName, res["status"], res["pid"])
 }
 
-func runStop() {
-	port := getDaemonPort()
+func runStop(projectName string) {
+	port, err := getDaemonPort(projectName)
+	if err != nil {
+		fmt.Printf("❌ %v\n", err)
+		return
+	}
 	url := fmt.Sprintf("http://localhost:%d/stop", port)
 
 	resp, err := http.Post(url, "application/json", nil)
@@ -421,14 +447,18 @@ func runStop() {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusOK {
-		fmt.Println("🛑 Shutdown signal sent to Tardis daemon.")
+		fmt.Printf("🛑 Shutdown signal sent to Tardis daemon for project '%s'.\n", projectName)
 	} else {
 		fmt.Printf("❌ Shutdown request failed with status: %d\n", resp.StatusCode)
 	}
 }
 
-func runPause() {
-	port := getDaemonPort()
+func runPause(projectName string) {
+	port, err := getDaemonPort(projectName)
+	if err != nil {
+		fmt.Printf("❌ %v\n", err)
+		return
+	}
 	url := fmt.Sprintf("http://localhost:%d/pause", port)
 
 	resp, err := http.Post(url, "application/json", nil)
@@ -439,14 +469,18 @@ func runPause() {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusOK {
-		fmt.Println("⏸️  Tardis daemon has been paused.")
+		fmt.Printf("⏸️  Tardis daemon for project '%s' has been paused.\n", projectName)
 	} else {
 		fmt.Printf("❌ Pause request failed with status: %d\n", resp.StatusCode)
 	}
 }
 
-func runResume() {
-	port := getDaemonPort()
+func runResume(projectName string) {
+	port, err := getDaemonPort(projectName)
+	if err != nil {
+		fmt.Printf("❌ %v\n", err)
+		return
+	}
 	url := fmt.Sprintf("http://localhost:%d/resume", port)
 
 	resp, err := http.Post(url, "application/json", nil)
@@ -457,7 +491,7 @@ func runResume() {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusOK {
-		fmt.Println("▶️  Tardis daemon has been resumed.")
+		fmt.Printf("▶️  Tardis daemon for project '%s' has been resumed.\n", projectName)
 	} else {
 		fmt.Printf("❌ Resume request failed with status: %d\n", resp.StatusCode)
 	}
@@ -527,8 +561,6 @@ func runGuideViewer() {
 	}
 }
 
-// arrowKeyMap returns a huh KeyMap that allows arrow keys (↑/↓) to navigate
-// between form fields in addition to the default Tab / Shift+Tab bindings.
 func arrowKeyMap() *huh.KeyMap {
 	km := huh.NewDefaultKeyMap()
 
@@ -548,7 +580,6 @@ func arrowKeyMap() *huh.KeyMap {
 	km.Confirm.Next = nextKeys
 	km.Confirm.Prev = prevKeys
 
-	// Add Esc support to quit form wizard
 	km.Quit = key.NewBinding(
 		key.WithKeys("ctrl+c", "esc"),
 		key.WithHelp("esc", "quit"),
@@ -557,9 +588,6 @@ func arrowKeyMap() *huh.KeyMap {
 	return km
 }
 
-// credSetupModel is a Bubble Tea model that wraps a huh form for credential
-// setup. It intercepts '?' to open the guide viewer and renders a persistent
-// footer hint bar at the bottom of the screen.
 type credSetupModel struct {
 	form     *huh.Form
 	quitting bool
@@ -574,7 +602,6 @@ func (m credSetupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "?":
-			// Intercept '?' to open guide viewer inline (blocks until user exits viewer)
 			runGuideViewer()
 			return m, nil
 		case "ctrl+c", "esc":
@@ -603,9 +630,7 @@ func (m credSetupModel) View() string {
 	return m.form.View() + footer
 }
 
-// runCredSetup runs the credential setup form as a Bubble Tea program with a
-// footer hint bar. Returns false if the user aborted.
-func runCredSetup(credPath, rootDir *string, confirm *bool, gcpSetupURL string) bool {
+func runCredSetup(credPath, rootDir, portStr *string, confirm *bool, gcpSetupURL string) bool {
 	form2 := huh.NewForm(
 		huh.NewGroup(
 			huh.NewNote().
@@ -632,9 +657,18 @@ func runCredSetup(credPath, rootDir *string, confirm *bool, gcpSetupURL string) 
 					return nil
 				}),
 			huh.NewInput().
-				Title("Google Drive Root Directory Name (default: tardis):").
-				Value(rootDir).
-				Placeholder("tardis"),
+				Title("Port for this daemon (auto-detected):").
+				Value(portStr).
+				Validate(func(str string) error {
+					p, err := strconv.Atoi(str)
+					if err != nil || p <= 0 || p > 65535 {
+						return errors.New("must be a valid port number (1-65535)")
+					}
+					return nil
+				}),
+			huh.NewInput().
+				Title("Google Drive Root Directory Name:").
+				Value(rootDir),
 			huh.NewConfirm().
 				Title("Ready to save configuration?").
 				Value(confirm),
