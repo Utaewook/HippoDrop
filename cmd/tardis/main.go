@@ -139,71 +139,14 @@ func runInit() {
 	gcpSetupURL := "https://console.cloud.google.com/apis/library/drive.googleapis.com"
 	_ = openBrowser(gcpSetupURL)
 
-	var showGuide bool
+	if !runCredSetup(&credPath, &rootDir, &confirm, gcpSetupURL) {
+		fmt.Println("Wizard aborted.")
+		os.Exit(1)
+	}
 
-	for {
-		showGuide = false
-		form2 := huh.NewForm(
-			huh.NewGroup(
-				huh.NewNote().
-					Title("🔑 Google Drive Setup").
-					Description(fmt.Sprintf(
-						"Tardis connects to Google Drive securely using a GCP Service Account.\n\n"+
-							"Follow these 3 quick steps to set it up:\n"+
-							"1. Enable Google Drive API in your GCP project:\n"+
-							"   👉 %s\n"+
-							"2. Create a Service Account in IAM, generate a JSON key, and download it.\n"+
-							"3. In Google Drive, create a folder and share it with your Service Account's email.",
-						gcpSetupURL,
-					)),
-				huh.NewInput().
-					Title("Absolute path to credentials.json:").
-					Value(&credPath),
-				huh.NewConfirm().
-					Title("How do I get a credentials.json file?").
-					Value(&showGuide).
-					Affirmative("View Guide").
-					Negative("I have it"),
-				huh.NewInput().
-					Title("Google Drive Root Directory Name (default: tardis):").
-					Value(&rootDir).
-					Placeholder("tardis"),
-				huh.NewConfirm().
-					Title("Ready to save configuration?").
-					Value(&confirm),
-			),
-		).WithKeyMap(arrowKeyMap()).WithProgramOptions(tea.WithAltScreen())
-
-		if err := form2.Run(); err != nil {
-			fmt.Println("Wizard aborted.")
-			os.Exit(1)
-		}
-
-		if showGuide {
-			runGuideViewer()
-			continue
-		}
-
-		if !confirm {
-			fmt.Println("Setup cancelled.")
-			os.Exit(1)
-		}
-
-		// Validate path only when trying to complete setup without viewing guide
-		if credPath == "" {
-			fmt.Println("❌ Error: path to credentials.json cannot be empty. Press Enter to try again.")
-			var dummy string
-			fmt.Scanln(&dummy)
-			continue
-		}
-		if _, err := os.Stat(credPath); os.IsNotExist(err) {
-			fmt.Printf("❌ Error: file not found at '%s'. Press Enter to try again.\n", credPath)
-			var dummy string
-			fmt.Scanln(&dummy)
-			continue
-		}
-
-		break
+	if !confirm {
+		fmt.Println("Setup cancelled.")
+		os.Exit(1)
 	}
 
 	if rootDir == "" {
@@ -608,3 +551,98 @@ func arrowKeyMap() *huh.KeyMap {
 	return km
 }
 
+// credSetupModel is a Bubble Tea model that wraps a huh form for credential
+// setup. It intercepts '?' to open the guide viewer and renders a persistent
+// footer hint bar at the bottom of the screen.
+type credSetupModel struct {
+	form     *huh.Form
+	quitting bool
+}
+
+func (m credSetupModel) Init() tea.Cmd {
+	return m.form.Init()
+}
+
+func (m credSetupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "?":
+			// Intercept '?' to open guide viewer inline (blocks until user exits viewer)
+			runGuideViewer()
+			return m, nil
+		case "ctrl+c":
+			m.quitting = true
+			return m, tea.Quit
+		}
+	}
+
+	form, cmd := m.form.Update(msg)
+	if f, ok := form.(*huh.Form); ok {
+		m.form = f
+	}
+
+	if m.form.State == huh.StateCompleted {
+		return m, tea.Quit
+	}
+
+	return m, cmd
+}
+
+func (m credSetupModel) View() string {
+	if m.quitting {
+		return ""
+	}
+	footer := "\n  \033[2m[?] setup guide   [ctrl+c] quit\033[0m"
+	return m.form.View() + footer
+}
+
+// runCredSetup runs the credential setup form as a Bubble Tea program with a
+// footer hint bar. Returns false if the user aborted.
+func runCredSetup(credPath, rootDir *string, confirm *bool, gcpSetupURL string) bool {
+	form2 := huh.NewForm(
+		huh.NewGroup(
+			huh.NewNote().
+				Title("🔑 Google Drive Setup").
+				Description(fmt.Sprintf(
+					"Tardis connects to Google Drive securely using a GCP Service Account.\n\n"+
+						"Follow these 3 quick steps to set it up:\n"+
+						"1. Enable Google Drive API in your GCP project:\n"+
+						"   👉 %s\n"+
+						"2. Create a Service Account in IAM, generate a JSON key, and download it.\n"+
+						"3. In Google Drive, create a folder and share it with your Service Account's email.",
+					gcpSetupURL,
+				)),
+			huh.NewInput().
+				Title("Absolute path to credentials.json:").
+				Value(credPath).
+				Validate(func(str string) error {
+					if str == "" {
+						return errors.New("path cannot be empty")
+					}
+					if _, err := os.Stat(str); os.IsNotExist(err) {
+						return fmt.Errorf("file not found: %s", str)
+					}
+					return nil
+				}),
+			huh.NewInput().
+				Title("Google Drive Root Directory Name (default: tardis):").
+				Value(rootDir).
+				Placeholder("tardis"),
+			huh.NewConfirm().
+				Title("Ready to save configuration?").
+				Value(confirm),
+		),
+	).WithKeyMap(arrowKeyMap())
+
+	model := credSetupModel{form: form2}
+	p := tea.NewProgram(model, tea.WithAltScreen())
+	result, err := p.Run()
+	if err != nil {
+		return false
+	}
+	if m, ok := result.(credSetupModel); ok && m.quitting {
+		return false
+	}
+	return true
+}
