@@ -60,17 +60,17 @@ Requires Go 1.25+ and a C compiler (for CGO/SQLite).
 git clone https://github.com/Utaewook/Tardis.git
 cd Tardis
 make build      # → build/tardis
-sudo make install   # → /usr/local/bin/tardis + /etc/tardis/tardis.yml
+sudo make install   # → /usr/local/bin/tardis
 ```
 
 ## 🚀 Quick Start
 
 ### 1. Initialize Configuration
 
-Run the interactive setup wizard:
+Run the interactive setup wizard for a new project:
 
 ```bash
-tardis init
+tardis init my-app
 ```
 
 This launches a full-screen TUI that guides you through:
@@ -78,18 +78,12 @@ This launches a full-screen TUI that guides you through:
 - Setting the path to your GCP service account credentials
 - Choosing a root directory name on Google Drive
 
-Configuration is saved to `~/.tardis/config.yml`.
+Configuration is saved to `~/.tardis/projects/my-app/config.yml`.
 
 ### 2. Start the Daemon
 
 ```bash
-tardis start
-```
-
-Or with a custom config path:
-
-```bash
-tardis start -c /path/to/config.yml
+tardis start my-app
 ```
 
 ### 3. Upload a File
@@ -144,10 +138,8 @@ Response:
 
 ## ⚙️ Configuration
 
-Tardis looks for configuration in this order:
-1. Path specified via `-c` flag
-2. `~/.tardis/config.yml` (user config, created by `tardis init`)
-3. `/etc/tardis/tardis.yml` (system config, created by `install.sh`)
+Tardis uses isolated configuration folders for each project:
+`~/.tardis/projects/<project>/config.yml`
 
 ### Example Configuration
 
@@ -184,11 +176,14 @@ workers:
 ## 🔧 CLI Reference
 
 ```
-tardis init          Launch the interactive setup wizard
-tardis start         Start the daemon (default config: ~/.tardis/config.yml)
-tardis start -c ...  Start with a custom config path
-tardis --version     Show version
-tardis --help        Show help
+tardis init <project>     Launch the interactive setup wizard
+tardis start <project>    Start the daemon
+tardis status <project>   Check the daemon status
+tardis stop <project>     Stop the running daemon gracefully
+tardis pause <project>    Pause dispatching new tasks
+tardis resume <project>   Resume dispatching tasks
+tardis --version          Show version
+tardis --help             Show help
 ```
 
 ## 🛠️ Task Lifecycle
