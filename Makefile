@@ -3,7 +3,6 @@
 BINARY_NAME=tardis
 BUILD_DIR=build
 INSTALL_DIR=/usr/local/bin
-CONFIG_DIR=/etc/tardis
 
 build:
 	@echo "Building Tardis..."
