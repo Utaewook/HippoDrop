@@ -565,12 +565,12 @@ func arrowKeyMap() *huh.KeyMap {
 	km := huh.NewDefaultKeyMap()
 
 	nextKeys := key.NewBinding(
-		key.WithKeys("tab", "down"),
-		key.WithHelp("↓/tab", "next"),
+		key.WithKeys("down"),
+		key.WithHelp("↓", "next"),
 	)
 	prevKeys := key.NewBinding(
-		key.WithKeys("shift+tab", "up"),
-		key.WithHelp("↑/shift+tab", "prev"),
+		key.WithKeys("up"),
+		key.WithHelp("↑", "prev"),
 	)
 
 	km.Input.Next = nextKeys
