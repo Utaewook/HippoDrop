@@ -518,11 +518,6 @@ func (m guideModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "q", "ctrl+c", "esc":
-			return m, tea.Quit
-		}
 	case tea.WindowSizeMsg:
 		headerHeight := 2
 		footerHeight := 2
@@ -554,13 +549,6 @@ func (m guideModel) View() string {
 	return fmt.Sprintf("%s\n%s\n%s", header, m.viewport.View(), footer)
 }
 
-func runGuideViewer() {
-	p := tea.NewProgram(newGuideModel(assets.GCPGuideText), tea.WithAltScreen())
-	if _, err := p.Run(); err != nil {
-		fmt.Printf("Error running guide viewer: %v\n", err)
-	}
-}
-
 func arrowKeyMap() *huh.KeyMap {
 	km := huh.NewDefaultKeyMap()
 
@@ -589,24 +577,63 @@ func arrowKeyMap() *huh.KeyMap {
 }
 
 type credSetupModel struct {
-	form     *huh.Form
-	quitting bool
+	form      *huh.Form
+	quitting  bool
+	showGuide bool
+	guide     guideModel
 }
 
 func (m credSetupModel) Init() tea.Cmd {
-	return m.form.Init()
+	return tea.Batch(m.form.Init(), m.guide.Init())
 }
 
 func (m credSetupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.showGuide {
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			switch msg.String() {
+			case "q", "esc":
+				m.showGuide = false
+				return m, nil
+			case "ctrl+c":
+				m.quitting = true
+				return m, tea.Quit
+			}
+		case tea.WindowSizeMsg:
+			updatedGuide, _ := m.guide.Update(msg)
+			if g, ok := updatedGuide.(guideModel); ok {
+				m.guide = g
+			}
+			// Update form with window size too just in case
+			form, _ := m.form.Update(msg)
+			if f, ok := form.(*huh.Form); ok {
+				m.form = f
+			}
+			return m, nil
+		}
+
+		updatedGuide, cmd := m.guide.Update(msg)
+		if g, ok := updatedGuide.(guideModel); ok {
+			m.guide = g
+		}
+		return m, cmd
+	}
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "?":
-			runGuideViewer()
+			m.showGuide = true
 			return m, nil
 		case "ctrl+c", "esc":
 			m.quitting = true
 			return m, tea.Quit
+		}
+	case tea.WindowSizeMsg:
+		// Send window size to guide even when hidden so it can initialize its viewport size
+		updatedGuide, _ := m.guide.Update(msg)
+		if g, ok := updatedGuide.(guideModel); ok {
+			m.guide = g
 		}
 	}
 
@@ -625,6 +652,9 @@ func (m credSetupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m credSetupModel) View() string {
 	if m.quitting {
 		return ""
+	}
+	if m.showGuide {
+		return m.guide.View()
 	}
 	footer := "\n  \033[2m[?] setup guide   [Esc] quit\033[0m"
 	return m.form.View() + footer
@@ -677,7 +707,10 @@ func runCredSetup(credPath, rootDir, portStr *string, confirm *bool, gcpSetupURL
 		),
 	).WithKeyMap(arrowKeyMap())
 
-	model := credSetupModel{form: form2}
+	model := credSetupModel{
+		form:  form2,
+		guide: newGuideModel(assets.GCPGuideText),
+	}
 	p := tea.NewProgram(model, tea.WithAltScreen())
 	result, err := p.Run()
 	if err != nil {
