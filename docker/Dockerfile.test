@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# install.sh 내부의 sudo 명령어가 비밀번호를 묻지 않도록 처리
+# scripts/install.sh 내부의 sudo 명령어가 비밀번호를 묻지 않도록 처리
 RUN echo "ALL ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
 WORKDIR /root

@@ -28,7 +28,7 @@ Your App ──HTTP──▶ Tardis ──async──▶ Google Drive
 ### Quick Install (Linux / macOS)
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Utaewook/Tardis/main/install.sh | sh
+curl -sSL https://raw.githubusercontent.com/Utaewook/Tardis/main/scripts/install.sh | sh
 ```
 
 This script automatically detects your OS and architecture, downloads the correct binary, and installs it to `/usr/local/bin/tardis`.
@@ -38,7 +38,7 @@ This script automatically detects your OS and architecture, downloads the correc
 To completely remove Tardis (binary, system configuration, and database) from your system, run:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Utaewook/Tardis/main/uninstall.sh | sh
+curl -sSL https://raw.githubusercontent.com/Utaewook/Tardis/main/scripts/uninstall.sh | sh
 ```
 
 ### Manual Download
