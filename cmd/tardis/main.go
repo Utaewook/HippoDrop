@@ -646,16 +646,7 @@ func runCredSetup(credPath, rootDir, portStr *string, confirm *bool, gcpSetupURL
 				)),
 			huh.NewInput().
 				Title("Absolute path to credentials.json:").
-				Value(credPath).
-				Validate(func(str string) error {
-					if str == "" {
-						return errors.New("path cannot be empty")
-					}
-					if _, err := os.Stat(str); os.IsNotExist(err) {
-						return fmt.Errorf("file not found: %s", str)
-					}
-					return nil
-				}),
+				Value(credPath),
 			huh.NewInput().
 				Title("Port for this daemon (auto-detected):").
 				Value(portStr).
@@ -671,7 +662,18 @@ func runCredSetup(credPath, rootDir, portStr *string, confirm *bool, gcpSetupURL
 				Value(rootDir),
 			huh.NewConfirm().
 				Title("Ready to save configuration?").
-				Value(confirm),
+				Value(confirm).
+				Validate(func(v bool) error {
+					if v {
+						if *credPath == "" {
+							return errors.New("credentials path cannot be empty")
+						}
+						if _, err := os.Stat(*credPath); os.IsNotExist(err) {
+							return fmt.Errorf("credentials file not found: %s", *credPath)
+						}
+					}
+					return nil
+				}),
 		),
 	).WithKeyMap(arrowKeyMap())
 
