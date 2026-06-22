@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -238,11 +239,26 @@ func runInit(projectName string) {
 
 	authURL := gConfig.AuthCodeURL("state-token", oauth2.AccessTypeOffline, oauth2.ApprovalForce)
 	fmt.Printf("\n🔗 Open this link in your browser to authorize Tardis:\n\n%v\n\n", authURL)
-	fmt.Print("🔑 Paste the authorization code here: ")
+	fmt.Println("⚠️  If your browser redirects to a 'Site can't be reached' page (localhost),")
+	fmt.Println("   simply COPY THE ENTIRE URL from your browser's address bar and paste it below.")
+	fmt.Print("🔑 Paste the full URL (or just the code) here: ")
 	
-	var authCode string
-	if _, err := fmt.Scan(&authCode); err != nil {
-		fmt.Printf("❌ Unable to read authorization code: %v\n", err)
+	var authInput string
+	if _, err := fmt.Scan(&authInput); err != nil {
+		fmt.Printf("❌ Unable to read input: %v\n", err)
+		os.Exit(1)
+	}
+
+	authCode := authInput
+	if strings.HasPrefix(authInput, "http") {
+		u, err := url.Parse(authInput)
+		if err == nil {
+			authCode = u.Query().Get("code")
+		}
+	}
+
+	if authCode == "" {
+		fmt.Println("❌ Could not extract authorization code. Please try again.")
 		os.Exit(1)
 	}
 
