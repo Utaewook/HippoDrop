@@ -1,0 +1,19 @@
+target_url: "http://localhost:8080"
+poll_interval: "2s"
+workspace: "./sim_data"
+
+services:
+  - name: "web-server"
+    interval: "1s"
+    size_kb: 10
+    remote_dir: "logs/web"
+
+  - name: "db-dump"
+    interval: "10s"
+    size_kb: 5000
+    remote_dir: "dumps/db"
+
+  - name: "analytics-batch"
+    interval: "5s"
+    size_kb: 1024
+    remote_dir: "analytics/batch"
