@@ -84,7 +84,7 @@ func (g *GoogleDriveAdapter) Upload(ctx context.Context, localPath, remotePath s
 
 	// For resumable chunked upload, the Drive API library handles it automatically 
 	// when we use .Media() with a file reader.
-	_, err = g.srv.Files.Create(driveFile).Media(f).Context(ctx).Do()
+	_, err = g.srv.Files.Create(driveFile).Media(f).Context(ctx).SupportsAllDrives(true).Do()
 	if err != nil {
 		return fmt.Errorf("failed to upload file: %w", err)
 	}
@@ -110,7 +110,7 @@ func (g *GoogleDriveAdapter) Download(ctx context.Context, remotePath, localPath
 	var offset int64 = 0
 
 	for {
-		req := g.srv.Files.Get(fileID)
+		req := g.srv.Files.Get(fileID).SupportsAllDrives(true)
 		req.Header().Set("Range", fmt.Sprintf("bytes=%d-%d", offset, offset+chunkSize-1))
 		
 		res, err := req.Download()
@@ -171,9 +171,16 @@ func (g *GoogleDriveAdapter) GetPathID(ctx context.Context, path string, createI
 		}
 		currentPath += "/" + part
 		
-		// Search for folder with currentID as parent and name as part
-		query := fmt.Sprintf("'%s' in parents and name = '%s' and trashed = false", currentID, part)
-		fileList, err := g.srv.Files.List().Q(query).Fields("files(id, name)").Context(ctx).Do()
+		var query string
+		if currentID == "root" {
+			// First folder might be shared with the SA, so we search globally
+			query = fmt.Sprintf("name = '%s' and mimeType = 'application/vnd.google-apps.folder' and trashed = false", part)
+		} else {
+			// Search inside the parent folder
+			query = fmt.Sprintf("'%s' in parents and name = '%s' and trashed = false", currentID, part)
+		}
+		
+		fileList, err := g.srv.Files.List().Q(query).Fields("files(id, name)").SupportsAllDrives(true).IncludeItemsFromAllDrives(true).Context(ctx).Do()
 		if err != nil {
 			return "", fmt.Errorf("failed to list files: %w", err)
 		}
@@ -185,7 +192,7 @@ func (g *GoogleDriveAdapter) GetPathID(ctx context.Context, path string, createI
 					MimeType: "application/vnd.google-apps.folder",
 					Parents:  []string{currentID},
 				}
-				created, err := g.srv.Files.Create(newFolder).Fields("id").Context(ctx).Do()
+				created, err := g.srv.Files.Create(newFolder).Fields("id").SupportsAllDrives(true).Context(ctx).Do()
 				if err != nil {
 					return "", fmt.Errorf("failed to create missing folder %s: %w", currentPath, err)
 				}
