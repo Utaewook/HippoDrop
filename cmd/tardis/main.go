@@ -763,13 +763,14 @@ func runCredSetup(credPath, rootDir, portStr *string, confirm *bool, gcpSetupURL
 			huh.NewNote().
 				Title("🔑 Google Drive Setup").
 				Description(fmt.Sprintf(
-					"Tardis connects to Google Drive securely using OAuth 2.0 User Consent.\n\n"+
-						"Follow these 3 quick steps to set it up (Press '?' for detailed guide):\n"+
-						"1. Create an OAuth 2.0 Client ID (Desktop App) in GCP:\n"+
-						"   👉 %s\n"+
-						"   ⚠️ IMPORTANT: Add your Gmail to 'Test users' on the Consent Screen!\n"+
-						"2. Download the JSON file and enter its path below.\n"+
-						"3. In the next step, you will be prompted to log in to your Google Account.",
+					"Tardis connects to your Google Drive via OAuth 2.0.\n\n"+
+						"⚠️  NEVER USED GOOGLE CLOUD BEFORE?\n"+
+						"👉 PRESS '?' ON YOUR KEYBOARD RIGHT NOW to open the beginner's step-by-step guide.\n\n"+
+						"Quick Summary (if you know what you're doing):\n"+
+						"1. Go to: %s\n"+
+						"2. Set up OAuth Consent Screen (Add your Gmail to 'Test users'!).\n"+
+						"3. Create an OAuth Client ID (Type: 'Desktop app').\n"+
+						"4. Download the JSON file and enter its absolute path below.",
 					gcpSetupURL,
 				)),
 			huh.NewInput().
