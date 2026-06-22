@@ -22,8 +22,9 @@ Tardis connects to Google Drive securely using OAuth 2.0 User Consent. Follow th
 ## Step 3. Configure OAuth Consent Screen
 1. Open the navigation menu > "APIs & Services" > "OAuth consent screen".
 2. Choose "External" (or "Internal" if you have a Workspace account) and click "Create".
-3. Fill in the required fields (App name, User support email, Developer contact information).
-4. Click "Save and Continue" through Scopes and Test Users. (If "External", add your own email to "Test Users" so you can test it without publishing the app).
+3. Fill in the required fields (App name, User support email, Developer contact information) and click "Save and Continue".
+4. Skip "Scopes" by clicking "Save and Continue".
+5. ★ CRITICAL ★ Under "Test users", click "+ ADD USERS" and type YOUR Gmail address. If you skip this, Google will block your login with a 403 Access Denied error! Click "Save and Continue".
 
 ---
 
