@@ -34,7 +34,7 @@ func TestGoogleDriveAdapter_ResolveRemotePath(t *testing.T) {
 
 func TestNewGoogleDriveAdapter_NonExistentCreds(t *testing.T) {
 	ctx := context.Background()
-	_, err := NewGoogleDriveAdapter(ctx, "non_existent_creds.json", "root", nil)
+	_, err := NewGoogleDriveAdapter(ctx, "non_existent_creds.json", "token.json", "root", nil)
 	if err == nil {
 		t.Fatal("expected error when creating adapter with non-existent credentials, got nil")
 	}
