@@ -1,11 +1,16 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -237,24 +242,83 @@ func runInit(projectName string) {
 		os.Exit(1)
 	}
 
-	authURL := gConfig.AuthCodeURL("state-token", oauth2.AccessTypeOffline, oauth2.ApprovalForce)
-	fmt.Printf("\n🔗 Open this link in your browser to authorize Tardis:\n\n%v\n\n", authURL)
-	fmt.Println("⚠️  If your browser redirects to a 'Site can't be reached' page (localhost),")
-	fmt.Println("   simply COPY THE ENTIRE URL from your browser's address bar and paste it below.")
-	fmt.Print("🔑 Paste the full URL (or just the code) here: ")
-	
-	var authInput string
-	if _, err := fmt.Scan(&authInput); err != nil {
-		fmt.Printf("❌ Unable to read input: %v\n", err)
-		os.Exit(1)
+	state := generateState()
+	verifier := generateCodeVerifier()
+	challenge := generateCodeChallenge(verifier)
+
+	// Attempt to start a local server for the OAuth callback
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	var srv *http.Server
+	if err == nil {
+		port := listener.Addr().(*net.TCPAddr).Port
+		gConfig.RedirectURL = fmt.Sprintf("http://127.0.0.1:%d", port)
+	} else {
+		// Fallback redirect URL if listen fails
+		gConfig.RedirectURL = "http://127.0.0.1"
 	}
 
-	authCode := authInput
-	if strings.HasPrefix(authInput, "http") {
-		u, err := url.Parse(authInput)
-		if err == nil {
-			authCode = u.Query().Get("code")
+	authURL := gConfig.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.ApprovalForce,
+		oauth2.SetAuthURLParam("code_challenge", challenge),
+		oauth2.SetAuthURLParam("code_challenge_method", "S256"))
+
+	fmt.Printf("\n🔗 Open this link in your browser to authorize Tardis:\n\n%v\n\n", authURL)
+
+	var authCode string
+	if err == nil {
+		fmt.Println("⏳ Waiting for authorization... (If the browser doesn't open automatically, copy and paste the link)")
+		_ = openBrowser(authURL)
+
+		codeChan := make(chan string)
+
+		srv = &http.Server{}
+		m := http.NewServeMux()
+		m.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("state") != state {
+				http.Error(w, "Invalid state", http.StatusBadRequest)
+				return
+			}
+			code := r.URL.Query().Get("code")
+			if code != "" {
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("Authentication successful. You may close this window."))
+				codeChan <- code
+			} else {
+				http.Error(w, "Missing code", http.StatusBadRequest)
+			}
+		})
+		srv.Handler = m
+		go func() {
+			_ = srv.Serve(listener)
+		}()
+
+		manualChan := make(chan string)
+		go func() {
+			reader := bufio.NewReader(os.Stdin)
+			fmt.Print("\n💡 If you cannot use the browser (e.g., SSH/Docker) or it failed, paste the redirected URL or code here: ")
+			input, _ := reader.ReadString('\n')
+			manualChan <- strings.TrimSpace(input)
+		}()
+
+		select {
+		case code := <-codeChan:
+			authCode = code
+			fmt.Println("\n✅ Successfully received authorization code from browser!")
+		case input := <-manualChan:
+			authCode = extractCode(input)
 		}
+		
+		ctxShutdown, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		defer cancel()
+		srv.Shutdown(ctxShutdown)
+	} else {
+		fmt.Println("⚠️  Local callback server could not be started.")
+		fmt.Println("   After authorization, your browser will redirect to a 'Site can't be reached' page.")
+		fmt.Println("   Simply COPY THE ENTIRE URL from your browser's address bar and paste it below.")
+		fmt.Print("🔑 Paste the full URL (or just the code) here: ")
+		
+		reader := bufio.NewReader(os.Stdin)
+		input, _ := reader.ReadString('\n')
+		authCode = extractCode(strings.TrimSpace(input))
 	}
 
 	if authCode == "" {
@@ -262,7 +326,7 @@ func runInit(projectName string) {
 		os.Exit(1)
 	}
 
-	tok, err := gConfig.Exchange(context.Background(), authCode)
+	tok, err := gConfig.Exchange(context.Background(), authCode, oauth2.SetAuthURLParam("code_verifier", verifier))
 	if err != nil {
 		fmt.Printf("❌ Unable to retrieve token from web: %v\n", err)
 		os.Exit(1)
@@ -961,4 +1025,33 @@ func runLs() {
 			fmt.Println("No running projects. Use 'tardis ls -a' to see all projects.")
 		}
 	}
+}
+
+func generateCodeVerifier() string {
+	b := make([]byte, 32)
+	_, _ = rand.Read(b)
+	return base64.RawURLEncoding.EncodeToString(b)
+}
+
+func generateCodeChallenge(verifier string) string {
+	h := sha256.New()
+	h.Write([]byte(verifier))
+	return base64.RawURLEncoding.EncodeToString(h.Sum(nil))
+}
+
+func generateState() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	return base64.RawURLEncoding.EncodeToString(b)
+}
+
+func extractCode(input string) string {
+	if strings.HasPrefix(input, "http") {
+		if u, err := url.Parse(input); err == nil {
+			if code := u.Query().Get("code"); code != "" {
+				return code
+			}
+		}
+	}
+	return input
 }
