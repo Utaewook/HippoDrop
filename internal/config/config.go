@@ -26,6 +26,7 @@ type StorageConfig struct {
 
 type GoogleDriveConfig struct {
 	CredentialsPath   string `yaml:"credentials_path"`
+	TokenPath         string `yaml:"token_path"`
 	RateLimitPerSec   int    `yaml:"rate_limit_per_second"`
 	RetryMaxAttempts  int    `yaml:"retry_max_attempts"`
 	RootDir           string `yaml:"root_dir"`

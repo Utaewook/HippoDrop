@@ -18,6 +18,10 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+	"google.golang.org/api/drive/v3"
+
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -184,8 +188,8 @@ func runInit(projectName string) {
 		os.Exit(1)
 	}
 
-	// Try to automatically open the Google Drive API setup page in the browser
-	gcpSetupURL := "https://console.cloud.google.com/apis/library/drive.googleapis.com"
+	// Try to automatically open the Google Cloud Credentials page
+	gcpSetupURL := "https://console.cloud.google.com/apis/credentials"
 	_ = openBrowser(gcpSetupURL)
 
 	if !runCredSetup(&credPath, &rootDir, &portStr, &confirm, gcpSetupURL) {
@@ -217,6 +221,45 @@ func runInit(projectName string) {
 	}
 
 	dataDir := filepath.Join(cfgDir, "data")
+	tokenPath := filepath.Join(cfgDir, "token.json")
+
+	// OAuth2 flow
+	b, err := os.ReadFile(credPath)
+	if err != nil {
+		fmt.Printf("❌ Unable to read client secret file: %v\n", err)
+		os.Exit(1)
+	}
+
+	gConfig, err := google.ConfigFromJSON(b, drive.DriveFileScope, drive.DriveScope)
+	if err != nil {
+		fmt.Printf("❌ Unable to parse client secret file: %v\n", err)
+		os.Exit(1)
+	}
+
+	authURL := gConfig.AuthCodeURL("state-token", oauth2.AccessTypeOffline, oauth2.ApprovalForce)
+	fmt.Printf("\n🔗 Open this link in your browser to authorize Tardis:\n\n%v\n\n", authURL)
+	fmt.Print("🔑 Paste the authorization code here: ")
+	
+	var authCode string
+	if _, err := fmt.Scan(&authCode); err != nil {
+		fmt.Printf("❌ Unable to read authorization code: %v\n", err)
+		os.Exit(1)
+	}
+
+	tok, err := gConfig.Exchange(context.Background(), authCode)
+	if err != nil {
+		fmt.Printf("❌ Unable to retrieve token from web: %v\n", err)
+		os.Exit(1)
+	}
+
+	tokFile, err := os.OpenFile(tokenPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		fmt.Printf("❌ Unable to save oauth token: %v\n", err)
+		os.Exit(1)
+	}
+	json.NewEncoder(tokFile).Encode(tok)
+	tokFile.Close()
+
 	configTemplate := fmt.Sprintf(`server:
   port: %d
   data_dir: "%s"
@@ -225,6 +268,7 @@ storage:
   provider: "google_drive"
   google_drive:
     credentials_path: "%s"
+    token_path: "%s"
     rate_limit_per_second: 10
     retry_max_attempts: 5
     root_dir: "%s"
@@ -232,7 +276,7 @@ storage:
 workers:
   pool_size: 4
   chunk_size_mb: 10
-`, port, dataDir, credPath, rootDir)
+`, port, dataDir, credPath, tokenPath, rootDir)
 
 	if err := os.WriteFile(cfgPath, []byte(configTemplate), 0644); err != nil {
 		fmt.Printf("\n❌ Failed to save config file: %v\n", err)
@@ -319,7 +363,7 @@ func runStart(projectName string) {
 	// 4. Initialize Storage Provider
 	var provider storage.Provider
 	if cfg.Storage.Provider == "google_drive" {
-		provider, err = storage.NewGoogleDriveAdapter(context.Background(), cfg.Storage.GoogleDrive.CredentialsPath, cfg.Storage.GoogleDrive.RootDir, db)
+		provider, err = storage.NewGoogleDriveAdapter(context.Background(), cfg.Storage.GoogleDrive.CredentialsPath, cfg.Storage.GoogleDrive.TokenPath, cfg.Storage.GoogleDrive.RootDir, db)
 		if err != nil {
 			log.Fatalf("Failed to initialize Google Drive adapter: %v", err)
 		}
@@ -719,16 +763,16 @@ func runCredSetup(credPath, rootDir, portStr *string, confirm *bool, gcpSetupURL
 			huh.NewNote().
 				Title("🔑 Google Drive Setup").
 				Description(fmt.Sprintf(
-					"Tardis connects to Google Drive securely using a GCP Service Account.\n\n"+
+					"Tardis connects to Google Drive securely using OAuth 2.0 User Consent.\n\n"+
 						"Follow these 3 quick steps to set it up:\n"+
-						"1. Enable Google Drive API in your GCP project:\n"+
+						"1. Create an OAuth 2.0 Client ID (Desktop App) in GCP:\n"+
 						"   👉 %s\n"+
-						"2. Create a Service Account in IAM, generate a JSON key, and download it.\n"+
-						"3. In Google Drive, create a folder and share it with your Service Account's email.",
+						"2. Download the JSON file and enter its path below.\n"+
+						"3. In the next step, you will be prompted to log in to your Google Account.",
 					gcpSetupURL,
 				)),
 			huh.NewInput().
-				Title("Absolute path to credentials.json:").
+				Title("Absolute path to client_secret.json:").
 				Value(credPath),
 			huh.NewInput().
 				Title("Port for this daemon (auto-detected):").

@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
@@ -23,13 +26,30 @@ type GoogleDriveAdapter struct {
 	rootDir string
 }
 
-func NewGoogleDriveAdapter(ctx context.Context, credentialsPath string, rootDir string, db *queue.DB) (*GoogleDriveAdapter, error) {
+func NewGoogleDriveAdapter(ctx context.Context, credentialsPath string, tokenPath string, rootDir string, db *queue.DB) (*GoogleDriveAdapter, error) {
 	b, err := os.ReadFile(credentialsPath)
 	if err != nil {
-		return nil, fmt.Errorf("unable to read credentials file: %v", err)
+		return nil, fmt.Errorf("unable to read client secret file: %v", err)
 	}
 
-	srv, err := drive.NewService(ctx, option.WithCredentialsJSON(b))
+	config, err := google.ConfigFromJSON(b, drive.DriveFileScope, drive.DriveScope)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse client secret file to config: %v", err)
+	}
+
+	tokFile, err := os.Open(tokenPath)
+	if err != nil {
+		return nil, fmt.Errorf("unable to open token file: %v", err)
+	}
+	defer tokFile.Close()
+
+	tok := &oauth2.Token{}
+	if err = json.NewDecoder(tokFile).Decode(tok); err != nil {
+		return nil, fmt.Errorf("unable to decode token: %v", err)
+	}
+
+	client := config.Client(ctx, tok)
+	srv, err := drive.NewService(ctx, option.WithHTTPClient(client))
 	if err != nil {
 		return nil, fmt.Errorf("unable to retrieve Drive client: %v", err)
 	}
