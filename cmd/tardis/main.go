@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"text/tabwriter"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -48,25 +49,31 @@ func getPIDFilePath(projectName string) string {
 }
 
 func main() {
-	if len(os.Args) == 2 {
-		switch os.Args[1] {
-		case "--version", "-v":
-			fmt.Printf("Tardis %s\n", Version)
-			return
-		case "--help", "-h":
-			printUsage()
-			return
-		default:
-			fmt.Printf("❌ Unknown command or missing project name.\n\n")
-			printUsage()
-			os.Exit(1)
-		}
-	} else if len(os.Args) < 3 {
+	if len(os.Args) < 2 {
 		printUsage()
 		os.Exit(1)
 	}
 
 	command := os.Args[1]
+
+	switch command {
+	case "--version", "-v":
+		fmt.Printf("Tardis %s\n", Version)
+		return
+	case "--help", "-h":
+		printUsage()
+		return
+	case "ls":
+		runLs()
+		return
+	}
+
+	if len(os.Args) < 3 {
+		fmt.Printf("❌ Missing project name.\n\n")
+		printUsage()
+		os.Exit(1)
+	}
+
 	projectName := os.Args[2]
 
 	if strings.TrimSpace(projectName) == "" {
@@ -88,6 +95,8 @@ func main() {
 		runPause(projectName)
 	case "resume":
 		runResume(projectName)
+	case "rm", "remove":
+		runRm(projectName)
 	default:
 		fmt.Printf("❌ Unknown command: %s\n\n", command)
 		printUsage()
@@ -98,14 +107,16 @@ func main() {
 func printUsage() {
 	fmt.Println("🚀 Tardis Cloud Storage Proxy Daemon")
 	fmt.Println("\nUsage:")
-	fmt.Println("  tardis init <project>     Launch setup wizard for a new project")
-	fmt.Println("  tardis start <project>    Start the daemon for the project")
-	fmt.Println("  tardis status <project>   Check the daemon running status")
-	fmt.Println("  tardis stop <project>     Stop the running daemon gracefully")
-	fmt.Println("  tardis pause <project>    Pause dispatching new tasks")
-	fmt.Println("  tardis resume <project>   Resume dispatching tasks")
-	fmt.Println("  tardis --version          Show version")
-	fmt.Println("  tardis --help             Show help")
+	fmt.Println("  tardis init <project>         Launch setup wizard for a new project")
+	fmt.Println("  tardis start <project> [-d]   Start the daemon (use -d for background)")
+	fmt.Println("  tardis ls [-a] [-l]           List daemons (-a: all, -l: details)")
+	fmt.Println("  tardis status <project>       Check the daemon running status")
+	fmt.Println("  tardis stop <project>         Stop the running daemon gracefully")
+	fmt.Println("  tardis pause <project>        Pause dispatching new tasks")
+	fmt.Println("  tardis resume <project>       Resume dispatching tasks")
+	fmt.Println("  tardis rm <project>           Remove a stopped project completely")
+	fmt.Println("  tardis --version              Show version")
+	fmt.Println("  tardis --help                 Show help")
 }
 
 func getNextAvailablePort() int {
@@ -228,6 +239,41 @@ workers:
 }
 
 func runStart(projectName string) {
+	detach := false
+	for _, arg := range os.Args[3:] {
+		if arg == "-d" {
+			detach = true
+		}
+	}
+
+	if detach {
+		exe, _ := os.Executable()
+		cmd := exec.Command(exe, "start", projectName)
+		
+		logPath := filepath.Join(getProjectDir(projectName), "daemon.log")
+		if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
+			fmt.Printf("❌ Failed to create log directory: %v\n", err)
+			os.Exit(1)
+		}
+		
+		logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		if err != nil {
+			fmt.Printf("❌ Failed to open daemon.log: %v\n", err)
+			os.Exit(1)
+		}
+		cmd.Stdout = logFile
+		cmd.Stderr = logFile
+
+		if err := cmd.Start(); err != nil {
+			fmt.Printf("❌ Failed to start daemon in background: %v\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Printf("✅ Tardis daemon started in background (PID: %d)\n", cmd.Process.Pid)
+		fmt.Printf("📂 Logs: %s\n", logPath)
+		return
+	}
+
 	configPath := getProjectConfigPath(projectName)
 
 	// Check if config exists
@@ -720,4 +766,130 @@ func runCredSetup(credPath, rootDir, portStr *string, confirm *bool, gcpSetupURL
 		return false
 	}
 	return true
+}
+
+func runRm(projectName string) {
+	pidPath := getPIDFilePath(projectName)
+	if data, err := os.ReadFile(pidPath); err == nil {
+		var pid int
+		if _, scanErr := fmt.Sscanf(string(data), "%d", &pid); scanErr == nil {
+			if isProcessRunning(pid) {
+				fmt.Printf("❌ Tardis daemon is currently running (PID: %d).\n", pid)
+				fmt.Printf("💡 Please run 'tardis stop %s' first.\n", projectName)
+				os.Exit(1)
+			}
+		}
+	}
+
+	projectDir := getProjectDir(projectName)
+	if _, err := os.Stat(projectDir); os.IsNotExist(err) {
+		fmt.Printf("❌ Project '%s' does not exist.\n", projectName)
+		os.Exit(1)
+	}
+
+	var confirm bool
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewConfirm().
+				Title(fmt.Sprintf("⚠️ Are you sure you want to completely delete project '%s'?", projectName)).
+				Description("This will remove all configurations, queued tasks (DB), and logs.").
+				Value(&confirm),
+		),
+	)
+	if err := form.Run(); err != nil || !confirm {
+		fmt.Println("Aborted.")
+		return
+	}
+
+	if err := os.RemoveAll(projectDir); err != nil {
+		fmt.Printf("❌ Failed to remove project directory: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("🗑️ Project '%s' deleted successfully.\n", projectName)
+}
+
+func runLs() {
+	showAll := false
+	showLong := false
+	for _, arg := range os.Args[2:] {
+		if strings.Contains(arg, "a") {
+			showAll = true
+		}
+		if strings.Contains(arg, "l") {
+			showLong = true
+		}
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Printf("❌ Failed to get home dir: %v\n", err)
+		return
+	}
+	projectsDir := filepath.Join(home, ".tardis", "projects")
+
+	entries, err := os.ReadDir(projectsDir)
+	if err != nil || len(entries) == 0 {
+		fmt.Println("No Tardis projects found.")
+		return
+	}
+
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+	if showLong {
+		fmt.Fprintln(w, "PROJECT\tSTATUS\tPID\tPORT\tPROVIDER\tROOT DIR")
+	} else {
+		fmt.Fprintln(w, "PROJECT\tSTATUS\tPID\tPORT")
+	}
+
+	count := 0
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		cfgPath := filepath.Join(projectsDir, name, "config.yml")
+		cfg, err := config.Load(cfgPath)
+		if err != nil {
+			continue // skip invalid projects
+		}
+
+		pidPath := filepath.Join(projectsDir, name, "tardis.pid")
+		status := "\033[90mStopped\033[0m"
+		pidStr := "-"
+		isRunning := false
+
+		if data, err := os.ReadFile(pidPath); err == nil {
+			var pid int
+			if _, scanErr := fmt.Sscanf(string(data), "%d", &pid); scanErr == nil {
+				if isProcessRunning(pid) {
+					status = "\033[32mRunning\033[0m"
+					pidStr = strconv.Itoa(pid)
+					isRunning = true
+				}
+			}
+		}
+
+		if !isRunning && !showAll {
+			continue
+		}
+
+		count++
+		if showLong {
+			provider := cfg.Storage.Provider
+			rootDir := ""
+			if provider == "google_drive" {
+				rootDir = cfg.Storage.GoogleDrive.RootDir
+			}
+			fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%s\t%s\n", name, status, pidStr, cfg.Server.Port, provider, rootDir)
+		} else {
+			fmt.Fprintf(w, "%s\t%s\t%s\t%d\n", name, status, pidStr, cfg.Server.Port)
+		}
+	}
+	w.Flush()
+
+	if count == 0 {
+		if !showAll {
+			fmt.Println("No running projects. Use 'tardis ls -a' to see all projects.")
+		}
+	}
 }
