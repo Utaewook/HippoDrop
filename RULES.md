@@ -21,7 +21,7 @@ This document defines the mandatory rules and checklists that **all developers a
 
 ### Step 2: Verify Environment
 
-1. **Dedicated Docker Environment** — Never set up the development environment on the local host machine. You must build and use a dedicated Docker environment for development and testing to prevent local environment pollution.
+1. **Go Development Environment** — Set up and verify the Go 1.25+ environment on your local host (or WSL). Use the provided Makefile to build and test to prevent configuration issues.
 2. **Go toolchain** — Confirm `go version` reports the project-required Go version inside the container.
 3. **Config file** — Confirm `tardis.yml` exists at the expected path.
 4. **Port check** — Default port is **8080**. Confirm nothing else is bound to it.
@@ -43,7 +43,7 @@ Before writing or merging any code, verify every item:
 
 1. **Clean workspace** — Remove any temp files (e.g., `*.tmp`, test SQLite DBs) from the repo.
 2. **Branch check** — Commits must be on `develop`. Direct commits to `main` are **forbidden**.
-3. **Commit message** — Strictly follow Conventional Commits format (see [05_convention.md](./docs/05_convention.md)).
+3. **Commit message** — Strictly follow Conventional Commits format (see [CONTRIBUTING.md](./CONTRIBUTING.md)).
 4. **Docs updated** — If terminology, architecture, or constraints changed, update the relevant doc before closing.
 5. **Troubleshooting documented** — Ensure any complex bugs fixed or architectural decisions made during the session have been documented via the `/trouble-shooting` skill.
 
@@ -52,10 +52,10 @@ Before writing or merging any code, verify every item:
 ## 3. AI Assistant Specific Rules (Mandatory)
 
 - **Thinking language:** All reasoning and planning must be done in **English**.
-- **Response language:** Replies to the user must be in **Korean**, using the **caveman** skill for conciseness.
+- **Response language:** Replies to the user must be in **Korean** in a polite and clear structured format.
 - **Grill before building:** When any design decision is ambiguous or contested, the AI **must** invoke the `/grill-me` process to resolve it before writing code.
 - **No unauthorized installs:** Never run `go get`, `npm install`, `pip install`, or equivalent unless in initial setup or explicitly user-approved.
-- **Terminology lock:** Always use the exact terms defined in [02_terminology.md](./docs/02_terminology.md). Never invent synonyms.
+- **Terminology lock:** Always use the exact terms defined in the architecture and domain docs ([docs/architecture.md](./docs/architecture.md)). Never invent synonyms.
 - **Troubleshooting records:** The AI must proactively use the `trouble-shooting` skill to document errors, problems, requirements, and architectural decisions when resolving complex issues.
 
 ---
@@ -77,8 +77,8 @@ Use `/grill-me` (or equivalent grill-me skill) whenever:
 
 ## 5. Reference Documents
 
-- [Project Overview (01_project_overview.md)](./docs/01_project_overview.md)
-- [Terminology & Concepts (02_terminology.md)](./docs/02_terminology.md)
-- [Architecture & Data Flow (03_architecture.md)](./docs/03_architecture.md)
-- [Go Coding Convention (04_go_convention.md)](./docs/04_go_convention.md)
-- [Git & General Convention (05_convention.md)](./docs/05_convention.md)
+- [Architecture & Data Flow (architecture.md)](./docs/architecture.md)
+- [Storage Provider (storage.md)](./docs/storage.md)
+- [Queue & Worker (queue.md)](./docs/queue.md)
+- [HTTP API (api.md)](./docs/api.md)
+- [Git & Commit Convention (CONTRIBUTING.md)](./CONTRIBUTING.md)

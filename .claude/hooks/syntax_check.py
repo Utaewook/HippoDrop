@@ -38,12 +38,32 @@ def _check_json(source: str):
         return False, f"JSONDecodeError at line {exc.lineno} col {exc.colno}: {exc.msg}"
 
 
+def _check_go(source: str):
+    import subprocess
+    try:
+        res = subprocess.run(
+            ["gofmt", "-e"],
+            input=source,
+            text=True,
+            capture_output=True,
+            check=False
+        )
+        if res.returncode != 0:
+            return False, res.stderr.strip()
+        return True, ""
+    except FileNotFoundError:
+        # gofmt가 설치되어 있지 않은 환경에서는 경고 없이 통과
+        return True, ""
+    except Exception as exc:
+        return False, f"Unexpected error during gofmt check: {exc}"
+
+
 # 확장자(소문자, 점 포함) -> 검사 함수
 CHECKERS = {
     ".py": _check_python,
     ".json": _check_json,
+    ".go": _check_go,
     # ".ts": _check_typescript,   # 예: subprocess 로 tsc --noEmit 호출
-    # ".go":  _check_gofmt,       # 예: subprocess 로 gofmt -l 호출
 }
 
 

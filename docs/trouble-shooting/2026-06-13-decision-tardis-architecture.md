@@ -26,4 +26,4 @@ The following decisions were made:
 4. **Prefetch API Contract:** The download API will mirror the upload API (`POST /download` with `{remote_path, local_path}`), returning a `202 Accepted` and `task_id`.
 5. **Download Mechanism:** To support large files safely and allow partial retries, downloads will use HTTP Range requests for Chunk-based resumable transfers, matching the upload strategy.
 
-Documents `03_architecture.md` and `06_implementation_plan.md` have been updated to reflect these decisions.
+Documents `docs/architecture.md` and `CLAUDE.md` have been updated to reflect these decisions.

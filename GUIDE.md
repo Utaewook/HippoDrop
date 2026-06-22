@@ -1,106 +1,43 @@
-# GUIDE — 하네스를 새 프로젝트에 맞게 채우기
+# GUIDE — 에이전트 하네스 및 작업 지침 관리 가이드
 
-`template/` 을 복사한 뒤, 이 순서대로 채우면 됩니다. 각 단계는 독립적이라 필요한 것만
-골라 해도 됩니다. 채우는 규칙의 *근거* 는 전부 `docs/_AUTHORING.md` 가 단일 출처이며,
-이 문서는 *순서* 만 다룹니다.
+본 문서는 `tardis` 저장소에 이미 구축된 에이전트 하네스(CLAUDE.md, `docs/*.md`, `.claude/commands/*.md`)를 올바르게 유지보수하고 향후 개발 및 확장 시 활용하는 규칙을 가이드합니다. 
 
----
-
-## 0. 사고방식
-
-당신이 채우는 건 "문서"가 아니라 **에이전트의 작업 환경**입니다. 목표는:
-- 에이전트가 무엇을 건드리기 전에 *어떤 계약을 먼저 읽어야 하는지* 알게 하고,
-- 확장(새 파일 추가)과 플랫폼 변경(계약 수정)을 *구분* 하게 하고,
-- 작업 결과를 *실제 환경에서 검증* 하게 하는 것.
-
-빈칸을 다 채울 필요 없습니다. **트리거 라우터(CLAUDE.md) 한 줄 + 그것이 가리키는
-개념 문서 1개** 만 있어도 하네스는 작동합니다. 도메인이 커질수록 표를 늘리세요.
+이 문서의 작성 규칙 및 아키텍처적 근거는 전부 [docs/_AUTHORING.md](file:///mnt/c/Users/admin/projects/personal/tardis/docs/_AUTHORING.md) 가 단일 출처입니다.
 
 ---
 
-## 1. CLAUDE.md (라우터) — 가장 먼저
+## 1. 하네스의 기본 구조와 핵심 가치
 
-`CLAUDE.md` 를 열면 두 종류가 있습니다:
-- **메타 규칙 블록** (현재-상태 원칙, md 모듈성 체크 등) — 그대로 두세요. 이게 재사용 가치입니다.
-- **`<!-- FILL -->` 칸** — 자기 프로젝트로 채웁니다.
+Tardis 저장소는 인공지능 에이전트(Antigravity 등)가 소스코드를 분석하고 안전하게 수정할 수 있도록 정밀하게 설계된 **하네스(Harness)** 환경을 유지합니다.
 
-채울 순서:
-1. **런타임/환경** 한 단락 — 언어, 실행 방법, 빌드/의존성 위치.
-2. **노드/엔트리포인트 실행** — 어떻게 띄우는가, 주요 실행 인자.
-3. **트리거 라우팅 표** — 핵심. "이 경로/파일을 건드리면 → 먼저 이 문서를 읽어라."
-   처음엔 1~2줄로 시작하고, 도메인이 생길 때마다 한 줄씩 추가.
-4. **계약 파일 목록** — 인터페이스를 정의하는 파일들. (그리고 `.claude/contract_files.txt`
-   에도 같은 glob 을 적어 `contract_guard` 훅이 인식하게 함 — 5번 참고.)
-
-> 원칙: CLAUDE.md 는 always-on 컨텍스트라 **얇게** 유지. 상세는 전부 `docs/` 로 위임하고
-> 여기엔 "트리거 한 줄 + 어느 문서로 가라"만.
+* **트리거 라우터 (CLAUDE.md)**: 
+  * "어느 경로/파일을 수정할 때 어떤 가이드 문서를 먼저 읽어야 하는가"를 매핑하는 항상 열려 있는 컨텍스트 인터페이스입니다.
+* **개념 및 계약 문서 (docs/*.md)**:
+  * 각 도메인(스토리지, API, 큐 등)의 구체적인 구현 제약, 불변식, 아키텍처 규칙을 설명합니다.
+* **절차 및 명령 (commands/*.md)**:
+  * 컴포넌트 추가나 작업 검증과 같이 반복 실행해야 할 행위들의 Step-by-step 절차를 자기완결적으로 기록합니다.
 
 ---
 
-## 2. docs/_AUTHORING.md — 읽기만, 수정 보류
+## 2. 하네스 유지보수 및 확장 절차
 
-이건 [완성]본입니다. 처음엔 **읽기만** 하세요. 8가지 작성 규칙(3계층 분리, SoT 위임,
-계약 파일, additive 확장, 안정 step 앵커, 검증 규율, no-legacy, md 모듈성 체크)이
-들어 있고, 나머지 모든 문서가 이 규칙을 따릅니다. 프로젝트 고유 규칙이 생기면 그때 덧붙이세요.
+### 1단계: 신규 도메인/컴포넌트 추가 시 (예: 새 API 모듈)
+1. [docs/_TEMPLATE.md](file:///mnt/c/Users/admin/projects/personal/tardis/docs/_TEMPLATE.md)를 복제하여 `docs/<도메인>.md` 개념 문서를 만듭니다.
+2. 컴포넌트 구조, 왜 그렇게 설계되었는지(Why), 어겨선 안 될 제약을 기술합니다.
+3. [CLAUDE.md](file:///mnt/c/Users/admin/projects/personal/tardis/CLAUDE.md)의 트리거 라우팅 표에 새 파일 경로 매핑 규칙을 한 줄 추가합니다.
 
----
+### 2단계: 신규 스토리지 백엔드 추가 시 (예: S3, Azure Blob 등)
+1. [.claude/commands/new-storage.md](file:///mnt/c/Users/admin/projects/personal/tardis/.claude/commands/new-storage.md) 커맨드 파일의 절차를 그대로 이행합니다.
+2. `internal/storage/<backend_name>.go` 파일에 `storage.Provider` 인터페이스를 구현하고, [config.go](file:///mnt/c/Users/admin/projects/personal/tardis/internal/config/config.go)와 [main.go](file:///mnt/c/Users/admin/projects/personal/tardis/cmd/tardis/main.go)를 순서대로 수정 및 연동합니다.
 
-## 3. docs/ 개념 문서 채우기
-
-당신의 도메인마다 개념 문서 하나를 만듭니다 (인증이면 `auth.md`, 저장소면 `storage.md` …).
-
-1. `docs/_TEMPLATE.md` 를 복사해 `docs/<도메인>.md` 로.
-2. 맨 위 **트리거 박스** 를 채움 — "이 파일들을 건드릴 때 본 문서를 먼저 읽어라."
-   (그리고 CLAUDE.md 라우팅 표에도 같은 트리거 한 줄 추가.)
-3. **컴포넌트 표 / 계약 / 불변식** 을 채움. "왜 그런가"는 여기, "어떤 명령을 치는가"는
-   커맨드로 미룸(포인터만).
-4. `docs/example-storage.md` 를 *채워진 모범 사례* 로 참고. 패턴이 익으면 지우거나 교체.
-5. `docs/architecture.md` 는 기동 시퀀스·재조정·동시성 등 시스템 전반을 적는 골격 —
-   대부분 프로젝트에서 가장 먼저 채우면 좋은 문서.
+### 3단계: 로컬 검증 실행 시
+1. 소스코드나 구성을 변경한 뒤에는 반드시 [.claude/commands/verify.md](file:///mnt/c/Users/admin/projects/personal/tardis/.claude/commands/verify.md) 가이드에 따라 실제 실행 환경(네이티브 Go 런타임)에서 데몬을 기동하여 검증합니다.
+2. 훅으로 등록된 `.claude/hooks/syntax_check.py`가 Go 파일(`.go`)에 대해 `gofmt`를 사용해 구문 검사를 수행하므로, 편집 결과물에 문법 오류가 없는지 자동으로 점검됩니다.
 
 ---
 
-## 4. .claude/commands/ 절차 커맨드 채우기
+## 3. 작업 시 주의 및 금지 사항
 
-반복되는 작업(새 컴포넌트 추가, 검증 등)을 자기완결적 슬래시 커맨드로 만듭니다.
-
-1. **검증부터**: `commands/verify.md` 는 [범용] 골격(Docker 기본 프로파일)입니다.
-   `<!-- FILL -->` 의 기동 명령·헬스 라인·정리 절차만 자기 환경으로 교체.
-2. **스캐폴드 커맨드**: `commands/new-storage.md` 를 [예시] 로 참고해, 자기 확장 작업을
-   `commands/new-<무엇>.md` 로 작성. `_TEMPLATE-command.md` 가 빈 골격.
-3. **안정 step 앵커**: 커맨드 안의 `§1, §2 …` 번호는 다른 커맨드/문서가 인용하는 앵커.
-   번호를 재배치하지 말고 새 step 은 끝에 append (근거: `_AUTHORING.md`).
-
----
-
-## 5. .claude/ 훅 활성화
-
-1. `settings.json` 은 그대로 두면 Edit/Write 후 `syntax_check.py` 가 돌고,
-   Edit/Write 전 `contract_guard.py` 가 계약 파일을 점검합니다.
-2. **`contract_files.txt`** 에 1번에서 정한 계약 파일 glob 을 한 줄씩 적습니다.
-   비워 두면 contract_guard 는 아무 것도 안 막습니다(무해).
-3. `contract_guard.py` 상단 `MODE` 를 `"warn"`(기본, 경고만) 또는 `"block"`(편집 차단)
-   으로 선택.
-4. 다른 언어를 검사하려면 `syntax_check.py` 의 `CHECKERS` 에 확장자→검사기를 추가
-   (파일 상단 주석에 방법 명시).
-
----
-
-## 6. 정리
-
-- 예시 파일(`example-storage.md`, `new-storage.md`)은 패턴이 익으면 **지우세요**.
-  남겨두면 에이전트가 실제 도메인으로 오해할 수 있습니다.
-- `_TEMPLATE*.md` 는 계속 새 문서/커맨드 찍어낼 때 쓰니 남겨도 됩니다.
-- 끝나면 CLAUDE.md 라우팅 표가 실제 docs/commands 와 일치하는지 한 번 훑으세요.
-
----
-
-## 체크리스트
-
-- [ ] `template/` 내용을 프로젝트 루트에 복사 (`.claude/` 포함 확인)
-- [ ] CLAUDE.md 런타임·엔트리포인트·트리거 표·계약 파일 채움
-- [ ] `.claude/contract_files.txt` 에 계약 파일 glob 기입
-- [ ] 도메인별 `docs/*.md` 최소 1개 작성 + CLAUDE.md 에 트리거 한 줄 연결
-- [ ] `commands/verify.md` 의 기동/헬스/정리 명령을 자기 환경으로 교체
-- [ ] 훅 동작 확인 (일부러 구문 오류 낸 파일 저장 → 피드백 오는지)
-- [ ] 예시 파일 정리, 라우팅 표 ↔ 실제 파일 일치 점검
+* **SoT(단일 출처) 위배 금지**: 동일한 규칙이나 시맨틱을 여러 마크다운 문서에 중복해서 적지 마세요.
+* **계약 파일 마음대로 수정 금지**: `internal/storage/provider.go`와 같이 아키텍처 계약을 정의한 인터페이스 파일은 플랫폼 설계 수준의 변경이 아닌 이상 함부로 수정해서는 안 되며, 수정을 시도할 경우 `contract_guard` 훅이 경고 및 차단 처리를 수행합니다.
+* **현재-상태 원칙 (No-legacy)**: 모든 마크다운과 주석은 과거 이력을 배제하고 **오직 현재 코드의 동작 상태**만을 설명해야 합니다. 이력 관리는 Git Commit이 수행합니다.

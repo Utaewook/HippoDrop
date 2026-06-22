@@ -14,7 +14,7 @@
 | 컴포넌트 | 파일 | 역할 |
 | --- | --- | --- |
 | `Provider` (인터페이스) | `internal/storage/provider.go` | 클라우드 스토리지 백엔드가 따라야 할 **계약 파일**. |
-| `GoogleDriveAdapter` | `internal/storage/google_drive.go` | 구글 드라이브 구현체. Path Cache 갱신, Chunk 업로드/다운로드. |
+| `GoogleDriveAdapter` | `internal/storage/googledrive.go` | 구글 드라이브 구현체. Path Cache 갱신, Chunk 업로드/다운로드. |
 
 ---
 
