@@ -80,7 +80,14 @@ func runService(ctx context.Context, svc simulator.ServiceConfig, workspace stri
 			fileName := filepath.Base(localPath)
 			remotePath := filepath.Join(svc.RemoteDir, fileName)
 
-			if err := tracker.UploadFile(localPath, remotePath); err != nil {
+			// Convert local path to absolute path for tardis
+			absLocalPath, err := filepath.Abs(localPath)
+			if err != nil {
+				log.Printf("⚠️ [%s] Failed to resolve absolute path: %v", svc.Name, err)
+				absLocalPath = localPath
+			}
+
+			if err := tracker.UploadFile(absLocalPath, remotePath); err != nil {
 				log.Printf("⚠️ [%s] Failed to upload task: %v", svc.Name, err)
 			} else {
 				log.Printf("📤 [%s] Enqueued %s", svc.Name, fileName)

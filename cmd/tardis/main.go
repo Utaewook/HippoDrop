@@ -146,6 +146,14 @@ func getNextAvailablePort() int {
 }
 
 func runInit(projectName string) {
+	// 0. Check if project already exists
+	cfgPath := getProjectConfigPath(projectName)
+	if _, err := os.Stat(cfgPath); err == nil {
+		fmt.Printf("❌ Project '%s' already exists.\n", projectName)
+		fmt.Printf("💡 If you want to recreate it, please remove it first using: tardis rm %s\n", projectName)
+		os.Exit(1)
+	}
+
 	var provider string
 	var credPath string
 	var portStr = fmt.Sprintf("%d", getNextAvailablePort())
@@ -201,7 +209,6 @@ func runInit(projectName string) {
 	}
 
 	// Save Configuration
-	cfgPath := getProjectConfigPath(projectName)
 	cfgDir := filepath.Dir(cfgPath)
 
 	if err := os.MkdirAll(cfgDir, 0755); err != nil {
