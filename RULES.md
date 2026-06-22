@@ -21,10 +21,12 @@ This document defines the mandatory rules and checklists that **all developers a
 
 ### Step 2: Verify Environment
 
-1. **Go Development Environment** — Set up and verify the Go 1.25+ environment on your local host (or WSL). Use the provided Makefile to build and test to prevent configuration issues.
-2. **Go toolchain** — Confirm `go version` reports the project-required Go version inside the container.
-3. **Config file** — Confirm `tardis.yml` exists at the expected path.
-4. **Port check** — Default port is **8080**. Confirm nothing else is bound to it.
+1. **Go Development Environment** — Use the **Docker container (`tardis-test`)** environment. The source code is mounted to `/app` inside the container. Do NOT run builds or tests directly on the host machine.
+2. **Go toolchain** — Confirm `/usr/local/go/bin/go version` reports Go 1.25.11 inside the container.
+   - Build: `docker exec -w /app -e PATH="/usr/local/go/bin:$PATH" tardis-test make build`
+   - Test: `docker exec -w /app -e PATH="/usr/local/go/bin:$PATH" tardis-test go test ./...`
+3. **Config file** — Confirm config file (e.g., config for daemon) exists at the expected path.
+4. **Port check** — Default port is **8080**. Confirm nothing else is bound to it inside/outside the container.
 
 ### Step 3: Core Constraints Self-Checklist
 
