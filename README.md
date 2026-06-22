@@ -136,56 +136,19 @@ Response:
 }
 ```
 
-## ⚙️ Configuration
-
-Tardis uses isolated configuration folders for each project:
-`~/.tardis/projects/<project>/config.yml`
-
-### Example Configuration
-
-```yaml
-server:
-  port: 8080
-  data_dir: "./data"
-
-storage:
-  provider: "google_drive"
-  google_drive:
-    credentials_path: "./client_secret.json"
-    token_path: "./token.json"
-    rate_limit_per_second: 10
-    retry_max_attempts: 5
-    root_dir: "tardis"
-
-workers:
-  pool_size: 4
-  chunk_size_mb: 10
-```
-
-| Key | Description | Default |
-|---|---|---|
-| `server.port` | HTTP server port | `8080` |
-| `server.data_dir` | Directory for SQLite DB and temp files | `./data` |
-| `storage.provider` | Cloud storage backend | `google_drive` |
-| `storage.google_drive.credentials_path` | Path to OAuth Client ID JSON | — |
-| `storage.google_drive.token_path` | Path to OAuth Token JSON | — |
-| `storage.google_drive.rate_limit_per_second` | API calls per second (Token Bucket) | `10` |
-| `storage.google_drive.retry_max_attempts` | Max retry attempts on failure | `5` |
-| `storage.google_drive.root_dir` | Root directory name on Google Drive | `tardis` |
-| `workers.pool_size` | Number of concurrent worker goroutines | `4` |
-| `workers.chunk_size_mb` | Chunk size for large file transfers (MB) | `10` |
-
 ## 🔧 CLI Reference
 
 ```
-tardis init <project>     Launch the interactive setup wizard
-tardis start <project>    Start the daemon
-tardis status <project>   Check the daemon status
-tardis stop <project>     Stop the running daemon gracefully
-tardis pause <project>    Pause dispatching new tasks
-tardis resume <project>   Resume dispatching tasks
-tardis --version          Show version
-tardis --help             Show help
+tardis init <project>         Launch setup wizard for a new project
+tardis start <project> [-d]   Start the daemon (use -d for background)
+tardis ls [-a] [-l]           List daemons (-a: all, -l: details)
+tardis status <project>       Check the daemon running status
+tardis stop <project>         Stop the running daemon gracefully
+tardis pause <project>        Pause dispatching new tasks
+tardis resume <project>       Resume dispatching tasks
+tardis rm <project>           Remove a stopped project completely
+tardis --version              Show version
+tardis --help                 Show help
 ```
 
 ## 🛠️ Task Lifecycle
