@@ -7,7 +7,8 @@ INSTALL_DIR=/usr/local/bin
 build:
 	@echo "Building Tardis..."
 	@mkdir -p $(BUILD_DIR)
-	go build -o $(BUILD_DIR)/$(BINARY_NAME) cmd/tardis/main.go
+	VERSION=$$(git describe --tags --always --dirty || echo "dev") && \
+	go build -ldflags="-X 'main.Version=$$VERSION'" -o $(BUILD_DIR)/$(BINARY_NAME) cmd/tardis/main.go
 	@echo "Build complete: $(BUILD_DIR)/$(BINARY_NAME)"
 
 install: build
