@@ -75,7 +75,7 @@ tardis init my-app
 
 This launches a full-screen TUI that guides you through:
 - Selecting your cloud storage provider (Google Drive)
-- Setting the path to your GCP service account credentials
+- Setting the path to your OAuth Client ID credentials (client_secret.json)
 - Choosing a root directory name on Google Drive
 
 Configuration is saved to `~/.tardis/projects/my-app/config.yml`.
@@ -151,7 +151,8 @@ server:
 storage:
   provider: "google_drive"
   google_drive:
-    credentials_path: "./credentials.json"
+    credentials_path: "./client_secret.json"
+    token_path: "./token.json"
     rate_limit_per_second: 10
     retry_max_attempts: 5
     root_dir: "tardis"
@@ -166,7 +167,8 @@ workers:
 | `server.port` | HTTP server port | `8080` |
 | `server.data_dir` | Directory for SQLite DB and temp files | `./data` |
 | `storage.provider` | Cloud storage backend | `google_drive` |
-| `storage.google_drive.credentials_path` | Path to GCP service account JSON | — |
+| `storage.google_drive.credentials_path` | Path to OAuth Client ID JSON | — |
+| `storage.google_drive.token_path` | Path to OAuth Token JSON | — |
 | `storage.google_drive.rate_limit_per_second` | API calls per second (Token Bucket) | `10` |
 | `storage.google_drive.retry_max_attempts` | Max retry attempts on failure | `5` |
 | `storage.google_drive.root_dir` | Root directory name on Google Drive | `tardis` |

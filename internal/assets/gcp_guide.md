@@ -1,6 +1,6 @@
 # Google Cloud Platform (GCP) Credential Guide
 
-Tardis connects to Google Drive securely using a Google Cloud Service Account. Follow these 5 steps to create your credentials and link your drive:
+Tardis connects to Google Drive securely using OAuth 2.0 User Consent. Follow these 4 steps to create your credentials and authorize the application:
 
 ---
 
@@ -19,31 +19,21 @@ Tardis connects to Google Drive securely using a Google Cloud Service Account. F
 
 ---
 
-## Step 3. Create a Service Account
-1. Open the navigation menu > "APIs & Services" > "Credentials".
-2. Click "+ Create Credentials" at the top and select "Service Account".
-3. Enter a name (e.g., "tardis-worker") and click "Create and Continue".
-4. You can skip the role assignment step and click "Done".
+## Step 3. Configure OAuth Consent Screen
+1. Open the navigation menu > "APIs & Services" > "OAuth consent screen".
+2. Choose "External" (or "Internal" if you have a Workspace account) and click "Create".
+3. Fill in the required fields (App name, User support email, Developer contact information).
+4. Click "Save and Continue" through Scopes and Test Users. (If "External", add your own email to "Test Users" so you can test it without publishing the app).
 
 ---
 
-## Step 4. Generate JSON Key File
-1. Under "Service Accounts" list, click the email address of the account you just created.
-   (Format: tardis-worker@<project-id>.iam.gserviceaccount.com)
-   👉 COPY THIS EMAIL ADDRESS. You will need it in Step 5.
-2. Click the "Keys" tab at the top.
-3. Click "Add Key" > "Create new key".
-4. Choose "JSON" as the key type and click "Create".
-5. A JSON file will download to your computer. This file is your "credentials.json".
-
----
-
-## Step 5. Link with Google Drive (★ CRITICAL ★)
-1. Go to your regular Google Drive (https://drive.google.com).
-2. Create a new folder (e.g., "tardis_data") which Tardis will use.
-3. Right-click the folder and select "Share" > "Share".
-4. Paste the Service Account Email Address copied in Step 4.
-5. Set the permission role to "Editor" and click "Send".
+## Step 4. Create OAuth Client ID
+1. Go to "APIs & Services" > "Credentials".
+2. Click "+ Create Credentials" at the top and select "OAuth client ID".
+3. For "Application type", select "Desktop app".
+4. Enter a name (e.g., "Tardis Client") and click "Create".
+5. A popup will appear. Click "DOWNLOAD JSON" to save the client secret file.
+6. Provide the absolute path to this JSON file in the Tardis wizard.
 
 ---
 
