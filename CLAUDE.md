@@ -8,11 +8,12 @@
 ## 런타임 및 환경
 
 - Go 1.25+. 소스 루트는 `cmd/`, `internal/` 이며 Go Module(`go.mod`) 규약.
-- **개발 및 테스트 환경 (Docker 컨테이너)**: 환경 격리를 위해 `tardis-test` 컨테이너 내부에서 작업을 진행합니다.
+- **개발 및 테스트 환경 (Docker 컨테이너)**: 환경 격리를 위해 `tardis-dev` 컨테이너 내부에서 작업을 진행합니다.
+  - 빌드/구동 스크립트: `./build/docker/run-dev.sh`
   - 소스코드 마운트 위치: 컨테이너 내부 `/app`
   - Go 바이너리 경로: `/usr/local/go/bin/go` (Go 1.25.11)
-  - 빌드 실행: `docker exec -w /app -e PATH="/usr/local/go/bin:$PATH" tardis-test make build`
-  - 테스트 실행: `docker exec -w /app -e PATH="/usr/local/go/bin:$PATH" tardis-test go test ./...`
+  - 빌드 실행: `docker exec -w /app tardis-dev make build`
+  - 테스트 실행: `docker exec -w /app tardis-dev go test ./...`
 - 실행 환경: Native 바이너리 (또는 Docker). 빌드·의존성 정의는 `go.mod` / `Makefile` 단일 출처.
 
 ## 엔트리포인트 / 노드 실행

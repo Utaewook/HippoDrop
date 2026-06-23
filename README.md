@@ -86,12 +86,13 @@ Configuration is saved to `~/.tardis/projects/my-app/config.yml`.
 tardis start my-app
 ```
 
-### 3. Upload a File
+### 3. Upload a File (with Optional Webhook & Authentication)
 
 ```bash
 curl -X POST http://localhost:8080/upload \
+  -H "Authorization: Bearer <your-secure-token>" \
   -H "Content-Type: application/json" \
-  -d '{"local_path": "/path/to/file.txt", "remote_path": "backups/file.txt"}'
+  -d '{"local_path": "/path/to/file.txt", "remote_path": "backups/file.txt", "callback_url": "https://your-app.com/webhook"}'
 ```
 
 Response:
@@ -102,7 +103,7 @@ Response:
 ### 4. Check Task Status
 
 ```bash
-curl http://localhost:8080/tasks/550e8400-e29b-41d4-a716-446655440000
+curl -H "Authorization: Bearer <your-secure-token>" http://localhost:8080/tasks/550e8400-e29b-41d4-a716-446655440000
 ```
 
 Response:
@@ -114,11 +115,17 @@ Response:
   "local_path": "/path/to/file.txt",
   "remote_path": "backups/file.txt",
   "retry_count": 0,
+  "callback_url": "https://your-app.com/webhook",
+  "callback_status": "sent",
+  "callback_retry_count": 0,
   "created_at": "2026-06-17T10:00:00Z"
 }
 ```
 
 ## 📡 API Reference
+
+> [!NOTE]
+> If `server.api_key` is configured in `config.yml`, all endpoints (except `/health`) require `Authorization: Bearer <API_KEY>` header.
 
 | Method | Endpoint | Description | Response |
 |---|---|---|---|
@@ -132,7 +139,8 @@ Response:
 ```json
 {
   "local_path": "/absolute/path/to/local/file",
-  "remote_path": "relative/path/on/cloud/storage"
+  "remote_path": "relative/path/on/cloud/storage",
+  "callback_url": "https://optional-callback-webhook.com"
 }
 ```
 

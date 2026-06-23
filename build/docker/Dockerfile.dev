@@ -1,0 +1,28 @@
+FROM ubuntu:22.04
+
+# Avoid interactive prompts during package installations
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install core build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    ca-certificates \
+    git \
+    sqlite3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Go 1.25.11
+RUN curl -L https://go.dev/dl/go1.25.11.linux-amd64.tar.gz | tar -C /usr/local -xzf -
+
+# Set Environment Variables
+ENV PATH=$PATH:/usr/local/go/bin
+ENV CGO_ENABLED=1
+ENV GOPATH=/go
+ENV PATH=$PATH:$GOPATH/bin
+
+RUN git config --global --add safe.directory /app
+
+WORKDIR /app
+
+CMD ["sleep", "infinity"]

@@ -1,5 +1,6 @@
 # Binaries and build output
-/build/
+/build/*
+!/build/docker/
 /tmp/
 /tardis
 /tardis-*
