@@ -20,28 +20,47 @@ type TaskScheduler interface {
 type Handler struct {
 	db        *queue.DB
 	scheduler TaskScheduler
+	apiKey    string
 }
 
-func NewHandler(db *queue.DB, scheduler TaskScheduler) *Handler {
+func NewHandler(db *queue.DB, scheduler TaskScheduler, apiKey string) *Handler {
 	return &Handler{
 		db:        db,
 		scheduler: scheduler,
+		apiKey:    apiKey,
+	}
+}
+
+func (h *Handler) withAuth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if h.apiKey != "" {
+			authHeader := r.Header.Get("Authorization")
+			expected := "Bearer " + h.apiKey
+			if authHeader != expected {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusUnauthorized)
+				_ = json.NewEncoder(w).Encode(map[string]string{"error": "Unauthorized"})
+				return
+			}
+		}
+		next(w, r)
 	}
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("POST /upload", h.handleUpload)
-	mux.HandleFunc("POST /download", h.handleDownload)
-	mux.HandleFunc("GET /tasks/{task_id}", h.handleGetTask)
-	mux.HandleFunc("GET /status", h.handleStatus)
-	mux.HandleFunc("POST /stop", h.handleStop)
-	mux.HandleFunc("POST /pause", h.handlePause)
-	mux.HandleFunc("POST /resume", h.handleResume)
+	mux.HandleFunc("POST /upload", h.withAuth(h.handleUpload))
+	mux.HandleFunc("POST /download", h.withAuth(h.handleDownload))
+	mux.HandleFunc("GET /tasks/{task_id}", h.withAuth(h.handleGetTask))
+	mux.HandleFunc("GET /status", h.withAuth(h.handleStatus))
+	mux.HandleFunc("POST /stop", h.withAuth(h.handleStop))
+	mux.HandleFunc("POST /pause", h.withAuth(h.handlePause))
+	mux.HandleFunc("POST /resume", h.withAuth(h.handleResume))
 }
 
 type TaskRequest struct {
-	LocalPath  string `json:"local_path"`
-	RemotePath string `json:"remote_path"`
+	LocalPath   string `json:"local_path"`
+	RemotePath  string `json:"remote_path"`
+	CallbackURL string `json:"callback_url,omitempty"`
 }
 
 type TaskResponse struct {
@@ -69,11 +88,16 @@ func (h *Handler) createTask(w http.ResponseWriter, r *http.Request, taskType st
 	}
 
 	taskID := uuid.New().String()
-	
-	query := `INSERT INTO tasks (task_id, type, local_path, remote_path, status, created_at, updated_at) 
-	          VALUES (?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-	
-	_, err := h.db.ExecContext(r.Context(), query, taskID, taskType, req.LocalPath, req.RemotePath)
+
+	callbackStatus := "none"
+	if req.CallbackURL != "" {
+		callbackStatus = "pending"
+	}
+
+	query := `INSERT INTO tasks (task_id, type, local_path, remote_path, status, callback_url, callback_status, created_at, updated_at) 
+	          VALUES (?, ?, ?, ?, 'pending', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+
+	_, err := h.db.ExecContext(r.Context(), query, taskID, taskType, req.LocalPath, req.RemotePath, req.CallbackURL, callbackStatus)
 	if err != nil {
 		http.Error(w, "failed to enqueue task", http.StatusInternalServerError)
 		return
@@ -85,14 +109,18 @@ func (h *Handler) createTask(w http.ResponseWriter, r *http.Request, taskType st
 }
 
 type TaskStatus struct {
-	TaskID     string    `json:"task_id"`
-	Type       string    `json:"type"`
-	LocalPath  string    `json:"local_path"`
-	RemotePath string    `json:"remote_path"`
-	Status     string    `json:"status"`
-	RetryCount int       `json:"retry_count"`
-	ErrorMsg   *string   `json:"error_msg,omitempty"`
-	CreatedAt  time.Time `json:"created_at"`
+	TaskID             string    `json:"task_id"`
+	Type               string    `json:"type"`
+	LocalPath          string    `json:"local_path"`
+	RemotePath         string    `json:"remote_path"`
+	Status             string    `json:"status"`
+	RetryCount         int       `json:"retry_count"`
+	ErrorMsg           *string   `json:"error_msg,omitempty"`
+	CallbackURL        string    `json:"callback_url,omitempty"`
+	CallbackStatus     string    `json:"callback_status,omitempty"`
+	CallbackRetryCount int       `json:"callback_retry_count,omitempty"`
+	CallbackError      *string   `json:"callback_error,omitempty"`
+	CreatedAt          time.Time `json:"created_at"`
 }
 
 func (h *Handler) handleGetTask(w http.ResponseWriter, r *http.Request) {
@@ -102,15 +130,15 @@ func (h *Handler) handleGetTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	query := `SELECT type, local_path, remote_path, status, retry_count, error_msg, created_at FROM tasks WHERE task_id = ?`
-	
+	query := `SELECT type, local_path, remote_path, status, retry_count, error_msg, COALESCE(callback_url, ''), callback_status, callback_retry_count, callback_error, created_at FROM tasks WHERE task_id = ?`
+
 	var ts TaskStatus
 	ts.TaskID = taskID
-	
+
 	err := h.db.QueryRowContext(r.Context(), query, taskID).Scan(
-		&ts.Type, &ts.LocalPath, &ts.RemotePath, &ts.Status, &ts.RetryCount, &ts.ErrorMsg, &ts.CreatedAt,
+		&ts.Type, &ts.LocalPath, &ts.RemotePath, &ts.Status, &ts.RetryCount, &ts.ErrorMsg, &ts.CallbackURL, &ts.CallbackStatus, &ts.CallbackRetryCount, &ts.CallbackError, &ts.CreatedAt,
 	)
-	
+
 	if err != nil {
 		if err == sql.ErrNoRows {
 			http.Error(w, "task not found", http.StatusNotFound)

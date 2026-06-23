@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -469,9 +470,13 @@ func runStart(projectName string) {
 	scheduler := worker.NewScheduler(db, taskChan)
 	go scheduler.Start(ctx)
 
+	// 7.5. Start Webhook Sender
+	webhookSender := worker.NewWebhookSender(db, cfg.Server.APIKey)
+	go webhookSender.Start(ctx)
+
 	// 8. Setup HTTP API
 	mux := http.NewServeMux()
-	handler := api.NewHandler(db, scheduler)
+	handler := api.NewHandler(db, scheduler, cfg.Server.APIKey)
 	handler.RegisterRoutes(mux)
 
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
@@ -569,25 +574,38 @@ func isProcessAlive(p *os.Process) bool {
 	return err == nil
 }
 
-func getDaemonPort(projectName string) (int, error) {
+func sendDaemonRequest(projectName string, method string, path string, body io.Reader) (*http.Response, error) {
 	cfgPath := getProjectConfigPath(projectName)
-	if cfg, err := config.Load(cfgPath); err == nil {
-		if cfg.Server.Port != 0 {
-			return cfg.Server.Port, nil
-		}
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		return nil, fmt.Errorf("could not load config for project %s: %w", projectName, err)
 	}
-	return 0, fmt.Errorf("could not load config for project %s", projectName)
+
+	port := cfg.Server.Port
+	if port == 0 {
+		return nil, fmt.Errorf("invalid port in config for project %s", projectName)
+	}
+
+	url := fmt.Sprintf("http://localhost:%d%s", port, path)
+	req, err := http.NewRequest(method, url, body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
+	}
+
+	if method == "POST" {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	if cfg.Server.APIKey != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", cfg.Server.APIKey))
+	}
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	return client.Do(req)
 }
 
 func runStatus(projectName string) {
-	port, err := getDaemonPort(projectName)
-	if err != nil {
-		fmt.Printf("❌ %v\n", err)
-		return
-	}
-	url := fmt.Sprintf("http://localhost:%d/status", port)
-
-	resp, err := http.Get(url)
+	resp, err := sendDaemonRequest(projectName, "GET", "/status", nil)
 	if err != nil {
 		pidPath := getPIDFilePath(projectName)
 		if _, statErr := os.Stat(pidPath); statErr == nil {
@@ -609,14 +627,7 @@ func runStatus(projectName string) {
 }
 
 func runStop(projectName string) {
-	port, err := getDaemonPort(projectName)
-	if err != nil {
-		fmt.Printf("❌ %v\n", err)
-		return
-	}
-	url := fmt.Sprintf("http://localhost:%d/stop", port)
-
-	resp, err := http.Post(url, "application/json", nil)
+	resp, err := sendDaemonRequest(projectName, "POST", "/stop", nil)
 	if err != nil {
 		fmt.Printf("❌ Failed to contact daemon: %v (Is it running?)\n", err)
 		return
@@ -631,14 +642,7 @@ func runStop(projectName string) {
 }
 
 func runPause(projectName string) {
-	port, err := getDaemonPort(projectName)
-	if err != nil {
-		fmt.Printf("❌ %v\n", err)
-		return
-	}
-	url := fmt.Sprintf("http://localhost:%d/pause", port)
-
-	resp, err := http.Post(url, "application/json", nil)
+	resp, err := sendDaemonRequest(projectName, "POST", "/pause", nil)
 	if err != nil {
 		fmt.Printf("❌ Failed to contact daemon: %v\n", err)
 		return
@@ -653,14 +657,7 @@ func runPause(projectName string) {
 }
 
 func runResume(projectName string) {
-	port, err := getDaemonPort(projectName)
-	if err != nil {
-		fmt.Printf("❌ %v\n", err)
-		return
-	}
-	url := fmt.Sprintf("http://localhost:%d/resume", port)
-
-	resp, err := http.Post(url, "application/json", nil)
+	resp, err := sendDaemonRequest(projectName, "POST", "/resume", nil)
 	if err != nil {
 		fmt.Printf("❌ Failed to contact daemon: %v\n", err)
 		return

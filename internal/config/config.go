@@ -17,6 +17,7 @@ type Config struct {
 type ServerConfig struct {
 	Port    int    `yaml:"port"`
 	DataDir string `yaml:"data_dir"`
+	APIKey  string `yaml:"api_key"`
 }
 
 type StorageConfig struct {

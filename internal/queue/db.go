@@ -69,8 +69,28 @@ func migrateSchema(db *sql.DB) error {
 	);
 	`
 
-	_, err := db.Exec(schema)
-	return err
+	if _, err := db.Exec(schema); err != nil {
+		return err
+	}
+
+	// Add callback columns dynamically if they do not exist
+	var hasCallbackURL bool
+	err := db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('tasks') WHERE name='callback_url'").Scan(&hasCallbackURL)
+	if err == nil && !hasCallbackURL {
+		if _, err := db.Exec("ALTER TABLE tasks ADD COLUMN callback_url TEXT"); err != nil {
+			return err
+		}
+		if _, err := db.Exec("ALTER TABLE tasks ADD COLUMN callback_status TEXT NOT NULL DEFAULT 'none'"); err != nil {
+			return err
+		}
+		if _, err := db.Exec("ALTER TABLE tasks ADD COLUMN callback_retry_count INTEGER NOT NULL DEFAULT 0"); err != nil {
+			return err
+		}
+		if _, err := db.Exec("ALTER TABLE tasks ADD COLUMN callback_error TEXT"); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func recoverTasks(db *sql.DB) error {

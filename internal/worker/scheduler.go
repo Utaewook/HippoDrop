@@ -59,7 +59,7 @@ func (s *Scheduler) dispatchPendingTasks(ctx context.Context) {
 	}
 	// Query pending tasks (limit to channel capacity to avoid blocking too long)
 	limit := cap(s.taskChan)
-	rows, err := s.db.QueryContext(ctx, "SELECT task_id, type, local_path, remote_path, status, retry_count FROM tasks WHERE status = 'pending' ORDER BY created_at ASC LIMIT ?", limit)
+	rows, err := s.db.QueryContext(ctx, "SELECT task_id, type, local_path, remote_path, status, retry_count, COALESCE(callback_url, ''), callback_status, callback_retry_count FROM tasks WHERE status = 'pending' ORDER BY created_at ASC LIMIT ?", limit)
 	if err != nil {
 		log.Printf("Scheduler failed to query pending tasks: %v", err)
 		return
@@ -69,7 +69,7 @@ func (s *Scheduler) dispatchPendingTasks(ctx context.Context) {
 	var tasks []*queue.Task
 	for rows.Next() {
 		t := &queue.Task{}
-		if err := rows.Scan(&t.ID, &t.Type, &t.LocalPath, &t.RemotePath, &t.Status, &t.RetryCount); err != nil {
+		if err := rows.Scan(&t.ID, &t.Type, &t.LocalPath, &t.RemotePath, &t.Status, &t.RetryCount, &t.CallbackURL, &t.CallbackStatus, &t.CallbackRetryCount); err != nil {
 			log.Printf("Scheduler failed to scan task: %v", err)
 			continue
 		}

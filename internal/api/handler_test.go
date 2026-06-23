@@ -23,7 +23,7 @@ func TestHandler_CreateTask_Success(t *testing.T) {
 	db, teardown := setupTestDB(t)
 	defer teardown()
 
-	handler := NewHandler(db, nil)
+	handler := NewHandler(db, nil, "")
 	server := httptest.NewServer(http.HandlerFunc(handler.handleUpload))
 	defer server.Close()
 
@@ -67,7 +67,7 @@ func TestHandler_CreateTask_MissingFields(t *testing.T) {
 	db, teardown := setupTestDB(t)
 	defer teardown()
 
-	handler := NewHandler(db, nil)
+	handler := NewHandler(db, nil, "")
 	server := httptest.NewServer(http.HandlerFunc(handler.handleUpload))
 	defer server.Close()
 
@@ -92,7 +92,7 @@ func TestHandler_CreateTask_InvalidJSON(t *testing.T) {
 	db, teardown := setupTestDB(t)
 	defer teardown()
 
-	handler := NewHandler(db, nil)
+	handler := NewHandler(db, nil, "")
 	server := httptest.NewServer(http.HandlerFunc(handler.handleUpload))
 	defer server.Close()
 
@@ -120,7 +120,7 @@ func TestHandler_GetTask(t *testing.T) {
 		t.Fatalf("failed to insert test task: %v", err)
 	}
 
-	handler := NewHandler(db, nil)
+	handler := NewHandler(db, nil, "")
 	mux := http.NewServeMux()
 	handler.RegisterRoutes(mux)
 
@@ -155,5 +155,44 @@ func TestHandler_GetTask(t *testing.T) {
 
 	if rrNotFound.Code != http.StatusNotFound {
 		t.Errorf("expected status 404 Not Found, got %d", rrNotFound.Code)
+	}
+}
+
+func TestHandler_Authentication(t *testing.T) {
+	db, teardown := setupTestDB(t)
+	defer teardown()
+
+	apiKey := "secret-token"
+	handler := NewHandler(db, nil, apiKey)
+	mux := http.NewServeMux()
+	handler.RegisterRoutes(mux)
+
+	// 1. Request without token -> should fail
+	reqNoToken := httptest.NewRequest("GET", "/tasks/test-task-123", nil)
+	rrNoToken := httptest.NewRecorder()
+	mux.ServeHTTP(rrNoToken, reqNoToken)
+
+	if rrNoToken.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 Unauthorized for request without token, got %d", rrNoToken.Code)
+	}
+
+	// 2. Request with invalid token -> should fail
+	reqBadToken := httptest.NewRequest("GET", "/tasks/test-task-123", nil)
+	reqBadToken.Header.Set("Authorization", "Bearer wrong-token")
+	rrBadToken := httptest.NewRecorder()
+	mux.ServeHTTP(rrBadToken, reqBadToken)
+
+	if rrBadToken.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 Unauthorized for request with wrong token, got %d", rrBadToken.Code)
+	}
+
+	// 3. Request with valid token but non-existent task -> should proceed to handler logic (returning 404 since task doesn't exist, rather than 401)
+	reqGoodToken := httptest.NewRequest("GET", "/tasks/test-task-123", nil)
+	reqGoodToken.Header.Set("Authorization", "Bearer "+apiKey)
+	rrGoodToken := httptest.NewRecorder()
+	mux.ServeHTTP(rrGoodToken, reqGoodToken)
+
+	if rrGoodToken.Code != http.StatusNotFound {
+		t.Errorf("expected 404 Not Found for authenticated request of non-existent task, got %d", rrGoodToken.Code)
 	}
 }
