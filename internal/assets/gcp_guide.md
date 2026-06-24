@@ -1,10 +1,10 @@
-# 🚀 The Ultimate Beginner's Guide to Google Cloud Setup for Tardis
+# The Ultimate Beginner's Guide to Google Cloud Setup for Tardis
 
 Don't worry if you've never used Google Cloud before! Just follow these steps exactly, and you'll be done in 3 minutes.
 
 ---
 
-## 🟢 Step 1: Create a Project & Enable the API
+## Step 1: Create a Project & Enable the API
 1. Go to **https://console.cloud.google.com/apis/library/drive.googleapis.com**
 2. If prompted, agree to the terms of service.
 3. You will see "Google Drive API". Click the blue **[Enable]** button.
@@ -12,7 +12,7 @@ Don't worry if you've never used Google Cloud before! Just follow these steps ex
 
 ---
 
-## 🟡 Step 2: Configure the "Consent Screen" (Crucial Step!)
+## Step 2: Configure the "Consent Screen" (Crucial Step!)
 Before you can get credentials, Google needs to know who is allowed to use this app.
 1. On the left sidebar menu (≡), click **APIs & Services** > **OAuth consent screen**.
 2. Under "User Type", select **External** and click **[Create]**.
@@ -29,7 +29,7 @@ Before you can get credentials, Google needs to know who is allowed to use this 
 
 ---
 
-## 🔴 Step 3: Get Your Client Secret JSON
+## Step 3: Get Your Client Secret JSON
 Now we just need to download the actual key file.
 1. On the left sidebar menu, click **APIs & Services** > **Credentials**.
 2. At the top of the screen, click **[+ CREATE CREDENTIALS]** > **OAuth client ID**.
@@ -40,7 +40,7 @@ Now we just need to download the actual key file.
 
 ---
 
-## 🏁 Step 4: Finish Tardis Setup
+## Step 4: Finish Tardis Setup
 1. Press **'q'** or **'Esc'** to close this guide.
 2. In the Tardis setup wizard, paste the **Absolute Path** to the JSON file you just downloaded.
    *(Example: `/home/user/client_secret.json` or `C:\Users\admin\client_secret.json`)*

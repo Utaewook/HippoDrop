@@ -80,7 +80,7 @@ func main() {
 	}
 
 	if len(os.Args) < 3 {
-		fmt.Printf("❌ Missing project name.\n\n")
+		fmt.Printf("[Error] Missing project name.\n\n")
 		printUsage()
 		os.Exit(1)
 	}
@@ -88,7 +88,7 @@ func main() {
 	projectName := os.Args[2]
 
 	if strings.TrimSpace(projectName) == "" {
-		fmt.Println("❌ Project name cannot be empty.")
+		fmt.Println("[Error] Project name cannot be empty.")
 		printUsage()
 		os.Exit(1)
 	}
@@ -109,14 +109,14 @@ func main() {
 	case "rm", "remove":
 		runRm(projectName)
 	default:
-		fmt.Printf("❌ Unknown command: %s\n\n", command)
+		fmt.Printf("[Error] Unknown command: %s\n\n", command)
 		printUsage()
 		os.Exit(1)
 	}
 }
 
 func printUsage() {
-	fmt.Println("🚀 Tardis Cloud Storage Proxy Daemon")
+	fmt.Println("Tardis Cloud Storage Proxy Daemon")
 	fmt.Println("\nUsage:")
 	fmt.Println("  tardis init <project>         Launch setup wizard for a new project")
 	fmt.Println("  tardis start <project> [-d]   Start the daemon (use -d for background)")
@@ -160,8 +160,8 @@ func runInit(projectName string) {
 	// 0. Check if project already exists
 	cfgPath := getProjectConfigPath(projectName)
 	if _, err := os.Stat(cfgPath); err == nil {
-		fmt.Printf("❌ Project '%s' already exists.\n", projectName)
-		fmt.Printf("💡 If you want to recreate it, please remove it first using: tardis rm %s\n", projectName)
+		fmt.Printf("[Error] Project '%s' already exists.\n", projectName)
+		fmt.Printf("[Hint] If you want to recreate it, please remove it first using: tardis rm %s\n", projectName)
 		os.Exit(1)
 	}
 
@@ -174,7 +174,7 @@ func runInit(projectName string) {
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewNote().
-				Title("✨ Tardis Setup Wizard ✨").
+				Title("Tardis Setup Wizard").
 				Description(fmt.Sprintf("Welcome! Let's configure your project '%s'.\nPress Enter to continue.", projectName)),
 			huh.NewSelect[string]().
 				Title("Choose your cloud storage provider:").
@@ -191,7 +191,7 @@ func runInit(projectName string) {
 	}
 
 	if provider != "Google Drive" {
-		fmt.Printf("❌ Sorry, %s is not supported in this beta version. Exiting.\n", provider)
+		fmt.Printf("[Error] Sorry, %s is not supported in this beta version. Exiting.\n", provider)
 		os.Exit(1)
 	}
 
@@ -215,7 +215,7 @@ func runInit(projectName string) {
 	
 	port, err := strconv.Atoi(portStr)
 	if err != nil || port <= 0 {
-		fmt.Printf("❌ Invalid port number: %s\n", portStr)
+		fmt.Printf("[Error] Invalid port number: %s\n", portStr)
 		os.Exit(1)
 	}
 
@@ -223,7 +223,7 @@ func runInit(projectName string) {
 	cfgDir := filepath.Dir(cfgPath)
 
 	if err := os.MkdirAll(cfgDir, 0755); err != nil {
-		fmt.Printf("\n❌ Failed to create config directory at %s: %v\n", cfgDir, err)
+		fmt.Printf("\n[Error] Failed to create config directory at %s: %v\n", cfgDir, err)
 		os.Exit(1)
 	}
 
@@ -233,13 +233,13 @@ func runInit(projectName string) {
 	// OAuth2 flow
 	b, err := os.ReadFile(credPath)
 	if err != nil {
-		fmt.Printf("❌ Unable to read client secret file: %v\n", err)
+		fmt.Printf("[Error] Unable to read client secret file: %v\n", err)
 		os.Exit(1)
 	}
 
 	gConfig, err := google.ConfigFromJSON(b, drive.DriveFileScope, drive.DriveScope)
 	if err != nil {
-		fmt.Printf("❌ Unable to parse client secret file: %v\n", err)
+		fmt.Printf("[Error] Unable to parse client secret file: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -262,11 +262,11 @@ func runInit(projectName string) {
 		oauth2.SetAuthURLParam("code_challenge", challenge),
 		oauth2.SetAuthURLParam("code_challenge_method", "S256"))
 
-	fmt.Printf("\n🔗 Open this link in your browser to authorize Tardis:\n\n%v\n\n", authURL)
+	fmt.Printf("\nOpen this link in your browser to authorize Tardis:\n\n%v\n\n", authURL)
 
 	var authCode string
 	if err == nil {
-		fmt.Println("⏳ Waiting for authorization... (If the browser doesn't open automatically, copy and paste the link)")
+		fmt.Println("Waiting for authorization... (If the browser doesn't open automatically, copy and paste the link)")
 		_ = openBrowser(authURL)
 
 		codeChan := make(chan string)
@@ -295,7 +295,7 @@ func runInit(projectName string) {
 		manualChan := make(chan string)
 		go func() {
 			reader := bufio.NewReader(os.Stdin)
-			fmt.Print("\n💡 If you cannot use the browser (e.g., SSH/Docker) or it failed, paste the redirected URL or code here: ")
+			fmt.Print("\n[Hint] If you cannot use the browser (e.g., SSH/Docker) or it failed, paste the redirected URL or code here: ")
 			input, _ := reader.ReadString('\n')
 			manualChan <- strings.TrimSpace(input)
 		}()
@@ -303,7 +303,7 @@ func runInit(projectName string) {
 		select {
 		case code := <-codeChan:
 			authCode = code
-			fmt.Println("\n✅ Successfully received authorization code from browser!")
+			fmt.Println("\nSuccessfully received authorization code from browser!")
 		case input := <-manualChan:
 			authCode = extractCode(input)
 		}
@@ -312,10 +312,10 @@ func runInit(projectName string) {
 		defer cancel()
 		srv.Shutdown(ctxShutdown)
 	} else {
-		fmt.Println("⚠️  Local callback server could not be started.")
+		fmt.Println("[Warning] Local callback server could not be started.")
 		fmt.Println("   After authorization, your browser will redirect to a 'Site can't be reached' page.")
 		fmt.Println("   Simply COPY THE ENTIRE URL from your browser's address bar and paste it below.")
-		fmt.Print("🔑 Paste the full URL (or just the code) here: ")
+		fmt.Print("Paste the full URL (or just the code) here: ")
 		
 		reader := bufio.NewReader(os.Stdin)
 		input, _ := reader.ReadString('\n')
@@ -323,19 +323,19 @@ func runInit(projectName string) {
 	}
 
 	if authCode == "" {
-		fmt.Println("❌ Could not extract authorization code. Please try again.")
+		fmt.Println("[Error] Could not extract authorization code. Please try again.")
 		os.Exit(1)
 	}
 
 	tok, err := gConfig.Exchange(context.Background(), authCode, oauth2.SetAuthURLParam("code_verifier", verifier))
 	if err != nil {
-		fmt.Printf("❌ Unable to retrieve token from web: %v\n", err)
+		fmt.Printf("[Error] Unable to retrieve token from web: %v\n", err)
 		os.Exit(1)
 	}
 
 	tokFile, err := os.OpenFile(tokenPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
-		fmt.Printf("❌ Unable to save oauth token: %v\n", err)
+		fmt.Printf("[Error] Unable to save oauth token: %v\n", err)
 		os.Exit(1)
 	}
 	json.NewEncoder(tokFile).Encode(tok)
@@ -360,14 +360,14 @@ workers:
 `, port, dataDir, credPath, tokenPath, rootDir)
 
 	if err := os.WriteFile(cfgPath, []byte(configTemplate), 0644); err != nil {
-		fmt.Printf("\n❌ Failed to save config file: %v\n", err)
+		fmt.Printf("\n[Error] Failed to save config file: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("\n✅ Success! Project '%s' is ready to run.\n", projectName)
-	fmt.Printf("📂 Configuration saved to: %s\n", cfgPath)
+	fmt.Printf("\nSuccess! Project '%s' is ready to run.\n", projectName)
+	fmt.Printf("Configuration saved to: %s\n", cfgPath)
 	fmt.Println("\nYou can now start the daemon by running:")
-	fmt.Printf("👉  tardis start %s\n", projectName)
+	fmt.Printf("Run:  tardis start %s\n", projectName)
 }
 
 func runStart(projectName string) {
@@ -384,25 +384,25 @@ func runStart(projectName string) {
 		
 		logPath := filepath.Join(getProjectDir(projectName), "daemon.log")
 		if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
-			fmt.Printf("❌ Failed to create log directory: %v\n", err)
+			fmt.Printf("[Error] Failed to create log directory: %v\n", err)
 			os.Exit(1)
 		}
 		
 		logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 		if err != nil {
-			fmt.Printf("❌ Failed to open daemon.log: %v\n", err)
+			fmt.Printf("[Error] Failed to open daemon.log: %v\n", err)
 			os.Exit(1)
 		}
 		cmd.Stdout = logFile
 		cmd.Stderr = logFile
 
 		if err := cmd.Start(); err != nil {
-			fmt.Printf("❌ Failed to start daemon in background: %v\n", err)
+			fmt.Printf("[Error] Failed to start daemon in background: %v\n", err)
 			os.Exit(1)
 		}
-
-		fmt.Printf("✅ Tardis daemon started in background (PID: %d)\n", cmd.Process.Pid)
-		fmt.Printf("📂 Logs: %s\n", logPath)
+		
+		fmt.Printf("Tardis daemon started in background (PID: %d)\n", cmd.Process.Pid)
+		fmt.Printf("Logs: %s\n", logPath)
 		return
 	}
 
@@ -410,19 +410,19 @@ func runStart(projectName string) {
 
 	// Check if config exists
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		fmt.Printf("❌ Config file not found at %s\n", configPath)
-		fmt.Printf("💡 Please run 'tardis init %s' first to generate a configuration.\n", projectName)
+		fmt.Printf("[Error] Config file not found at %s\n", configPath)
+		fmt.Printf("[Hint] Please run 'tardis init %s' first to generate a configuration.\n", projectName)
 		os.Exit(1)
 	}
-
+	
 	// Write PID file and check duplication
 	if err := writePIDFile(projectName); err != nil {
-		fmt.Printf("❌ %v\n", err)
+		fmt.Printf("[Error] %v\n", err)
 		os.Exit(1)
 	}
 	defer removePIDFile(projectName)
-
-	fmt.Printf("🚀 Tardis Daemon starting for project '%s'...\n", projectName)
+	
+	fmt.Printf("Tardis Daemon starting for project '%s'...\n", projectName)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -609,9 +609,9 @@ func runStatus(projectName string) {
 	if err != nil {
 		pidPath := getPIDFilePath(projectName)
 		if _, statErr := os.Stat(pidPath); statErr == nil {
-			fmt.Println("⚠️  PID file exists but daemon is not responding. (Status: Stale)")
+			fmt.Println("[Warning] PID file exists but daemon is not responding. (Status: Stale)")
 		} else {
-			fmt.Printf("ℹ️  Tardis daemon for project '%s' is not running.\n", projectName)
+			fmt.Printf("[Info] Tardis daemon for project '%s' is not running.\n", projectName)
 		}
 		return
 	}
@@ -619,7 +619,7 @@ func runStatus(projectName string) {
 
 	var res map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
-		fmt.Printf("❌ Failed to parse status response: %v\n", err)
+		fmt.Printf("[Error] Failed to parse status response: %v\n", err)
 		return
 	}
 
@@ -629,45 +629,45 @@ func runStatus(projectName string) {
 func runStop(projectName string) {
 	resp, err := sendDaemonRequest(projectName, "POST", "/stop", nil)
 	if err != nil {
-		fmt.Printf("❌ Failed to contact daemon: %v (Is it running?)\n", err)
+		fmt.Printf("[Error] Failed to contact daemon: %v (Is it running?)\n", err)
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusOK {
-		fmt.Printf("🛑 Shutdown signal sent to Tardis daemon for project '%s'.\n", projectName)
+		fmt.Printf("Shutdown signal sent to Tardis daemon for project '%s'.\n", projectName)
 	} else {
-		fmt.Printf("❌ Shutdown request failed with status: %d\n", resp.StatusCode)
+		fmt.Printf("[Error] Shutdown request failed with status: %d\n", resp.StatusCode)
 	}
 }
 
 func runPause(projectName string) {
 	resp, err := sendDaemonRequest(projectName, "POST", "/pause", nil)
 	if err != nil {
-		fmt.Printf("❌ Failed to contact daemon: %v\n", err)
+		fmt.Printf("[Error] Failed to contact daemon: %v\n", err)
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusOK {
-		fmt.Printf("⏸️  Tardis daemon for project '%s' has been paused.\n", projectName)
+		fmt.Printf("[Paused] Tardis daemon for project '%s' has been paused.\n", projectName)
 	} else {
-		fmt.Printf("❌ Pause request failed with status: %d\n", resp.StatusCode)
+		fmt.Printf("[Error] Pause request failed with status: %d\n", resp.StatusCode)
 	}
 }
 
 func runResume(projectName string) {
 	resp, err := sendDaemonRequest(projectName, "POST", "/resume", nil)
 	if err != nil {
-		fmt.Printf("❌ Failed to contact daemon: %v\n", err)
+		fmt.Printf("[Error] Failed to contact daemon: %v\n", err)
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusOK {
-		fmt.Printf("▶️  Tardis daemon for project '%s' has been resumed.\n", projectName)
+		fmt.Printf("[Resumed] Tardis daemon for project '%s' has been resumed.\n", projectName)
 	} else {
-		fmt.Printf("❌ Resume request failed with status: %d\n", resp.StatusCode)
+		fmt.Printf("[Error] Resume request failed with status: %d\n", resp.StatusCode)
 	}
 }
 
@@ -718,7 +718,7 @@ func (m guideModel) View() string {
 	if !m.ready {
 		return "\n  Initializing guide..."
 	}
-	header := "📖 Google Drive GCP Setup Guide (Press 'q' or 'Esc' to exit)\n-----------------------------------------------------------"
+	header := "Google Drive GCP Setup Guide (Press 'q' or 'Esc' to exit)\n-----------------------------------------------------------"
 	footer := fmt.Sprintf("-----------------------------------------------------------\nScroll: ↑/↓/PgUp/PgDn | %3.f%%", m.viewport.ScrollPercent()*100)
 	return fmt.Sprintf("%s\n%s\n%s", header, m.viewport.View(), footer)
 }
@@ -838,11 +838,11 @@ func runCredSetup(credPath, rootDir, portStr *string, confirm *bool, gcpSetupURL
 	form2 := huh.NewForm(
 		huh.NewGroup(
 			huh.NewNote().
-				Title("🔑 Google Drive Setup").
+				Title("Google Drive Setup").
 				Description(fmt.Sprintf(
 					"Tardis connects to your Google Drive via OAuth 2.0.\n\n"+
-						"⚠️  NEVER USED GOOGLE CLOUD BEFORE?\n"+
-						"👉 PRESS '?' ON YOUR KEYBOARD RIGHT NOW to open the beginner's step-by-step guide.\n\n"+
+						"[Warning] NEVER USED GOOGLE CLOUD BEFORE?\n"+
+						"Press '?' on your keyboard to open the beginner's step-by-step guide.\n\n"+
 						"Quick Summary (if you know what you're doing):\n"+
 						"1. Go to: %s\n"+
 						"2. Set up OAuth Consent Screen (Add your Gmail to 'Test users'!).\n"+
@@ -904,8 +904,8 @@ func runRm(projectName string) {
 		var pid int
 		if _, scanErr := fmt.Sscanf(string(data), "%d", &pid); scanErr == nil {
 			if isProcessRunning(pid) {
-				fmt.Printf("❌ Tardis daemon is currently running (PID: %d).\n", pid)
-				fmt.Printf("💡 Please run 'tardis stop %s' first.\n", projectName)
+				fmt.Printf("[Error] Tardis daemon is currently running (PID: %d).\n", pid)
+				fmt.Printf("[Hint] Please run 'tardis stop %s' first.\n", projectName)
 				os.Exit(1)
 			}
 		}
@@ -913,7 +913,7 @@ func runRm(projectName string) {
 
 	projectDir := getProjectDir(projectName)
 	if _, err := os.Stat(projectDir); os.IsNotExist(err) {
-		fmt.Printf("❌ Project '%s' does not exist.\n", projectName)
+		fmt.Printf("[Error] Project '%s' does not exist.\n", projectName)
 		os.Exit(1)
 	}
 
@@ -921,7 +921,7 @@ func runRm(projectName string) {
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewConfirm().
-				Title(fmt.Sprintf("⚠️ Are you sure you want to completely delete project '%s'?", projectName)).
+				Title(fmt.Sprintf("[Warning] Are you sure you want to completely delete project '%s'?", projectName)).
 				Description("This will remove all configurations, queued tasks (DB), and logs.").
 				Value(&confirm),
 		),
@@ -932,11 +932,11 @@ func runRm(projectName string) {
 	}
 
 	if err := os.RemoveAll(projectDir); err != nil {
-		fmt.Printf("❌ Failed to remove project directory: %v\n", err)
+		fmt.Printf("[Error] Failed to remove project directory: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("🗑️ Project '%s' deleted successfully.\n", projectName)
+	fmt.Printf("Project '%s' deleted successfully.\n", projectName)
 }
 
 func runLs() {
@@ -953,7 +953,7 @@ func runLs() {
 
 	home, err := os.UserHomeDir()
 	if err != nil {
-		fmt.Printf("❌ Failed to get home dir: %v\n", err)
+		fmt.Printf("[Error] Failed to get home dir: %v\n", err)
 		return
 	}
 	projectsDir := filepath.Join(home, ".tardis", "projects")

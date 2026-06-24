@@ -99,13 +99,13 @@ func (t *Tracker) checkTasks() {
 	for _, info := range activeTasks {
 		status, err := t.pollTask(info.TaskID)
 		if err != nil {
-			log.Printf("⚠️ [Tracker] Error polling task %s: %v", info.TaskID, err)
+			log.Printf("[Warning] [Tracker] Error polling task %s: %v", info.TaskID, err)
 			continue
 		}
 
 		if status == "done" {
 			latency := time.Since(info.CreatedAt)
-			log.Printf("✅ [Completed] Task %s | Latency: %s | Removed: %s", info.TaskID, latency.Round(time.Millisecond), info.LocalPath)
+			log.Printf("[Completed] Task %s | Latency: %s | Removed: %s", info.TaskID, latency.Round(time.Millisecond), info.LocalPath)
 			
 			// Auto delete original file
 			_ = os.Remove(info.LocalPath)
@@ -114,7 +114,7 @@ func (t *Tracker) checkTasks() {
 			delete(t.tasks, info.TaskID)
 			t.mu.Unlock()
 		} else if status == "failed" {
-			log.Printf("❌ [Failed] Task %s | Retained: %s", info.TaskID, info.LocalPath)
+			log.Printf("[Failed] Task %s | Retained: %s", info.TaskID, info.LocalPath)
 			t.mu.Lock()
 			delete(t.tasks, info.TaskID)
 			t.mu.Unlock()

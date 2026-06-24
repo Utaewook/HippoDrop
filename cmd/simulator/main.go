@@ -21,16 +21,16 @@ func main() {
 
 	cfg, err := simulator.LoadConfig(*configPath)
 	if err != nil {
-		log.Fatalf("❌ Failed to load config: %v", err)
+		log.Fatalf("[Error] Failed to load config: %v", err)
 	}
 
 	pollDur, err := time.ParseDuration(cfg.PollInterval)
 	if err != nil {
-		log.Fatalf("❌ Invalid poll_interval: %v", err)
+		log.Fatalf("[Error] Invalid poll_interval: %v", err)
 	}
 
-	fmt.Printf("🚀 Starting Tardis Simulator targeting %s\n", cfg.TargetURL)
-	fmt.Printf("📂 Workspace: %s\n", cfg.Workspace)
+	fmt.Printf("Starting Tardis Simulator targeting %s\n", cfg.TargetURL)
+	fmt.Printf("Workspace: %s\n", cfg.Workspace)
 
 	tracker := simulator.NewTracker(cfg.TargetURL, pollDur)
 	go tracker.Start()
@@ -49,19 +49,19 @@ func main() {
 	}
 
 	<-ctx.Done()
-	fmt.Println("\n🛑 Simulator shutting down...")
+	fmt.Println("\nSimulator shutting down...")
 	wg.Wait()
-	fmt.Println("✅ Simulation ended cleanly.")
+	fmt.Println("Simulation ended cleanly.")
 }
 
 func runService(ctx context.Context, svc simulator.ServiceConfig, workspace string, tracker *simulator.Tracker) {
 	interval, err := time.ParseDuration(svc.Interval)
 	if err != nil {
-		log.Printf("❌ [%s] Invalid interval %s: %v", svc.Name, svc.Interval, err)
+		log.Printf("[Error] [%s] Invalid interval %s: %v", svc.Name, svc.Interval, err)
 		return
 	}
 
-	log.Printf("🔥 [%s] Started | Interval: %s | Size: %dKB", svc.Name, svc.Interval, svc.SizeKB)
+	log.Printf("[%s] Started | Interval: %s | Size: %dKB", svc.Name, svc.Interval, svc.SizeKB)
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
@@ -72,7 +72,7 @@ func runService(ctx context.Context, svc simulator.ServiceConfig, workspace stri
 		case <-ticker.C:
 			localPath, err := simulator.GenerateFakeFile(workspace, svc.Name, svc.SizeKB)
 			if err != nil {
-				log.Printf("⚠️ [%s] Failed to generate file: %v", svc.Name, err)
+				log.Printf("[Warning] [%s] Failed to generate file: %v", svc.Name, err)
 				continue
 			}
 
@@ -83,14 +83,14 @@ func runService(ctx context.Context, svc simulator.ServiceConfig, workspace stri
 			// Convert local path to absolute path for tardis
 			absLocalPath, err := filepath.Abs(localPath)
 			if err != nil {
-				log.Printf("⚠️ [%s] Failed to resolve absolute path: %v", svc.Name, err)
+				log.Printf("[Warning] [%s] Failed to resolve absolute path: %v", svc.Name, err)
 				absLocalPath = localPath
 			}
 
 			if err := tracker.UploadFile(absLocalPath, remotePath); err != nil {
-				log.Printf("⚠️ [%s] Failed to upload task: %v", svc.Name, err)
+				log.Printf("[Warning] [%s] Failed to upload task: %v", svc.Name, err)
 			} else {
-				log.Printf("📤 [%s] Enqueued %s", svc.Name, fileName)
+				log.Printf("[Enqueued] [%s] %s", svc.Name, fileName)
 			}
 		}
 	}
