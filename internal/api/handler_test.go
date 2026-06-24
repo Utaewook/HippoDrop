@@ -196,3 +196,94 @@ func TestHandler_Authentication(t *testing.T) {
 		t.Errorf("expected 404 Not Found for authenticated request of non-existent task, got %d", rrGoodToken.Code)
 	}
 }
+
+func TestHandler_CreateTask_SecurityValidation_PathTraversal(t *testing.T) {
+	db, teardown := setupTestDB(t)
+	defer teardown()
+
+	handler := NewHandler(db, nil, "")
+	server := httptest.NewServer(http.HandlerFunc(handler.handleUpload))
+	defer server.Close()
+
+	tests := []struct {
+		name       string
+		localPath  string
+		statusCode int
+	}{
+		{"Relative path", "relative/path/to/file.txt", http.StatusBadRequest},
+		{"Blocked system path /etc", "/etc/passwd", http.StatusForbidden},
+		{"Blocked system path /root", "/root/.ssh/id_rsa", http.StatusForbidden},
+		{"Blocked system path /proc", "/proc/self/environ", http.StatusForbidden},
+		{"Blocked system path /sys", "/sys/class/net", http.StatusForbidden},
+		{"Blocked system path /dev", "/dev/null", http.StatusForbidden},
+		{"Blocked system path /boot", "/boot/grub/grub.cfg", http.StatusForbidden},
+		{"Blocked system path /var/run", "/var/run/docker.sock", http.StatusForbidden},
+		{"Blocked system path /usr/sbin", "/usr/sbin/cron", http.StatusForbidden},
+		{"Safe absolute path", "/tmp/safe_file.txt", http.StatusAccepted},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reqBody := TaskRequest{
+				LocalPath:  tt.localPath,
+				RemotePath: "/remote/file.txt",
+			}
+			bodyBytes, _ := json.Marshal(reqBody)
+
+			resp, err := http.Post(server.URL, "application/json", bytes.NewBuffer(bodyBytes))
+			if err != nil {
+				t.Fatalf("failed to make POST request: %v", err)
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != tt.statusCode {
+				t.Errorf("expected status %d, got %d", tt.statusCode, resp.StatusCode)
+			}
+		})
+	}
+}
+
+func TestHandler_CreateTask_SecurityValidation_SSRF(t *testing.T) {
+	db, teardown := setupTestDB(t)
+	defer teardown()
+
+	handler := NewHandler(db, nil, "")
+	server := httptest.NewServer(http.HandlerFunc(handler.handleUpload))
+	defer server.Close()
+
+	tests := []struct {
+		name        string
+		callbackURL string
+		statusCode  int
+	}{
+		{"Localhost loopback", "http://localhost:8080/callback", http.StatusBadRequest},
+		{"127.0.0.1 loopback", "http://127.0.0.1/callback", http.StatusBadRequest},
+		{"Private IP Class A", "http://10.0.0.1/callback", http.StatusBadRequest},
+		{"Private IP Class B", "http://172.16.0.1/callback", http.StatusBadRequest},
+		{"Private IP Class C", "http://192.168.1.1/callback", http.StatusBadRequest},
+		{"Non-HTTP(S) scheme", "ftp://example.com/callback", http.StatusBadRequest},
+		{"Public domain", "https://example.com/callback", http.StatusAccepted},
+		{"Empty callback url", "", http.StatusAccepted},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reqBody := TaskRequest{
+				LocalPath:   "/tmp/safe_file.txt",
+				RemotePath:  "/remote/file.txt",
+				CallbackURL: tt.callbackURL,
+			}
+			bodyBytes, _ := json.Marshal(reqBody)
+
+			resp, err := http.Post(server.URL, "application/json", bytes.NewBuffer(bodyBytes))
+			if err != nil {
+				t.Fatalf("failed to make POST request: %v", err)
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != tt.statusCode {
+				t.Errorf("expected status %d, got %d", tt.statusCode, resp.StatusCode)
+			}
+		})
+	}
+}
