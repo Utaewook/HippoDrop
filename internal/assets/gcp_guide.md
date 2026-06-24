@@ -33,7 +33,7 @@ Before you can get credentials, Google needs to know who is allowed to use this 
 Now we just need to download the actual key file.
 1. On the left sidebar menu, click **APIs & Services** > **Credentials**.
 2. At the top of the screen, click **[+ CREATE CREDENTIALS]** > **OAuth client ID**.
-3. Under "Application type", open the dropdown and select **Desktop app**.
+3. Under "Application type", open the dropdown and select **TVs and Limited Input Devices**.
 4. Name it anything (e.g., "HippoDrop Client") and click **[Create]**.
 5. A popup will appear saying "OAuth client created". Click the **[DOWNLOAD JSON]** button.
 6. Move this downloaded file to a safe folder on your computer.
@@ -44,4 +44,5 @@ Now we just need to download the actual key file.
 1. Press **'q'** or **'Esc'** to close this guide.
 2. In the HippoDrop setup wizard, paste the **Absolute Path** to the JSON file you just downloaded.
    *(Example: `/home/user/client_secret.json` or `C:\Users\admin\client_secret.json`)*
-3. Complete the wizard. HippoDrop will give you a link to open in your browser to log in securely!
+3. Complete the wizard. HippoDrop will display a URL and an 8-character activation code. 
+4. Open the URL in your browser, enter the activation code, and log in. HippoDrop will automatically detect completion and finalize your setup!
