@@ -977,7 +977,8 @@ func runLs() {
 		return
 	}
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+	var sb strings.Builder
+	w := tabwriter.NewWriter(&sb, 0, 0, 3, ' ', 0)
 	if showLong {
 		fmt.Fprintln(w, "PROJECT\tSTATUS\tPID\tPORT\tPROVIDER\tROOT DIR")
 	} else {
@@ -996,7 +997,7 @@ func runLs() {
 		}
 
 		pidPath := filepath.Join(projectsDir, name, "hippodrop.pid")
-		status := "\033[90mStopped\033[0m"
+		status := "Stopped"
 		pidStr := "-"
 		isRunning := false
 
@@ -1004,7 +1005,7 @@ func runLs() {
 			var pid int
 			if _, scanErr := fmt.Sscanf(string(data), "%d", &pid); scanErr == nil {
 				if isProcessRunning(pid) {
-					status = "\033[32mRunning\033[0m"
+					status = "Running"
 					pidStr = strconv.Itoa(pid)
 					isRunning = true
 				}
@@ -1028,6 +1029,11 @@ func runLs() {
 		}
 	}
 	w.Flush()
+
+	out := sb.String()
+	out = strings.ReplaceAll(out, "Running", "\033[32mRunning\033[0m")
+	out = strings.ReplaceAll(out, "Stopped", "\033[90mStopped\033[0m")
+	fmt.Print(out)
 }
 
 func generateCodeVerifier() string {
