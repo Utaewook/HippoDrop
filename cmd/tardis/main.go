@@ -55,6 +55,15 @@ func getProjectConfigPath(projectName string) string {
 	return filepath.Join(getProjectDir(projectName), "config.yml")
 }
 
+func loadProjectConfig(projectName string) (*config.Config, error) {
+	cfgPath := getProjectConfigPath(projectName)
+	// Auto correct permissions to 0600 if file exists (Option X)
+	if _, err := os.Stat(cfgPath); err == nil {
+		_ = os.Chmod(cfgPath, 0600)
+	}
+	return config.Load(cfgPath)
+}
+
 func getPIDFilePath(projectName string) string {
 	return filepath.Join(getProjectDir(projectName), "tardis.pid")
 }
@@ -359,7 +368,7 @@ workers:
   chunk_size_mb: 10
 `, port, dataDir, credPath, tokenPath, rootDir)
 
-	if err := os.WriteFile(cfgPath, []byte(configTemplate), 0644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(configTemplate), 0600); err != nil {
 		fmt.Printf("\n[Error] Failed to save config file: %v\n", err)
 		os.Exit(1)
 	}
@@ -428,7 +437,7 @@ func runStart(projectName string) {
 	defer stop()
 
 	// 2. Load Configuration
-	cfg, err := config.Load(configPath)
+	cfg, err := loadProjectConfig(projectName)
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
@@ -575,8 +584,7 @@ func isProcessAlive(p *os.Process) bool {
 }
 
 func sendDaemonRequest(projectName string, method string, path string, body io.Reader) (*http.Response, error) {
-	cfgPath := getProjectConfigPath(projectName)
-	cfg, err := config.Load(cfgPath)
+	cfg, err := loadProjectConfig(projectName)
 	if err != nil {
 		return nil, fmt.Errorf("could not load config for project %s: %w", projectName, err)
 	}
@@ -977,8 +985,7 @@ func runLs() {
 			continue
 		}
 		name := entry.Name()
-		cfgPath := filepath.Join(projectsDir, name, "config.yml")
-		cfg, err := config.Load(cfgPath)
+		cfg, err := loadProjectConfig(name)
 		if err != nil {
 			continue // skip invalid projects
 		}
