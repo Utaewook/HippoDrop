@@ -3,6 +3,7 @@ set -e
 
 # Configuration
 REPO="Utaewook/HippoDrop"
+PROJECT_NAME="hippodrop"
 BIN_DIR="/usr/local/bin"
 BINARY_NAME="hippo"
 
@@ -26,7 +27,7 @@ case $ARCH in
 esac
 
 # GitHub Releases URL construction
-DOWNLOAD_URL="https://github.com/${REPO}/releases/latest/download/${BINARY_NAME}-${OS}-${ARCH}"
+DOWNLOAD_URL="https://github.com/${REPO}/releases/latest/download/${PROJECT_NAME}-${OS}-${ARCH}"
 
 echo "Downloading HippoDrop for ${OS}/${ARCH}..."
 
