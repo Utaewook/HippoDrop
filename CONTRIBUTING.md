@@ -1,8 +1,8 @@
-# Contributing to Tardis
+# Contributing to HippoDrop
 
 ## Git Commit Convention
 
-Tardis strictly follows the **[Conventional Commits](https://www.conventionalcommits.org/)** specification. This ensures a readable project history and enables automated semantic versioning and changelog generation.
+HippoDrop strictly follows the **[Conventional Commits](https://www.conventionalcommits.org/)** specification. This ensures a readable project history and enables automated semantic versioning and changelog generation.
 
 ### Commit Message Format
 ```
@@ -51,7 +51,7 @@ Use scopes to indicate the specific module or component being modified:
 
 ## Branching Strategy
 
-Tardis follows a simplified Git Flow model using two primary branches:
+HippoDrop follows a simplified Git Flow model using two primary branches:
 
 1. **`main`**: The stable, production-ready branch. All commits here must be releasable.
 2. **`develop`**: The active development branch. All new features, refactoring, and bug fixes are committed or merged here first.

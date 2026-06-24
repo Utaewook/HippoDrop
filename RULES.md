@@ -1,4 +1,4 @@
-# Tardis — Session Rules & Checklist
+# HippoDrop — Session Rules & Checklist
 
 This document defines the mandatory rules and checklists that **all developers and AI assistants** must read and follow at the **start and end of every session**. No exceptions.
 
@@ -21,10 +21,10 @@ This document defines the mandatory rules and checklists that **all developers a
 
 ### Step 2: Verify Environment
 
-1. **Go Development Environment** — Use the **Docker container (`tardis-dev`)** environment. The source code is mounted to `/app` inside the container. Do NOT run builds or tests directly on the host machine. Build and run it using `./build/docker/run-dev.sh`.
+1. **Go Development Environment** — Use the **Docker container (`hippodrop-dev`)** environment. The source code is mounted to `/app` inside the container. Do NOT run builds or tests directly on the host machine. Build and run it using `./build/docker/run-dev.sh`.
 2. **Go toolchain** — Confirm `go version` reports Go 1.25.11 inside the container.
-   - Build: `docker exec -w /app tardis-dev make build`
-   - Test: `docker exec -w /app tardis-dev go test ./...`
+   - Build: `docker exec -w /app hippodrop-dev make build`
+   - Test: `docker exec -w /app hippodrop-dev go test ./...`
 3. **Config file** — Confirm config file (e.g., config for daemon) exists at the expected path.
 4. **Port check** — Default port is **8080**. Confirm nothing else is bound to it inside/outside the container.
 
@@ -33,7 +33,7 @@ This document defines the mandatory rules and checklists that **all developers a
 Before writing or merging any code, verify every item:
 
 - [ ] **No unauthorized dependencies** — Do NOT run `go get` or modify `go.mod/go.sum` unless during initial setup or **explicitly requested by the user**.
-- [ ] **Single binary rule** — All logic must remain inside the single Tardis process. No external broker (Redis, Celery, RabbitMQ, etc.) may be introduced.
+- [ ] **Single binary rule** — All logic must remain inside the single HippoDrop process. No external broker (Redis, Celery, RabbitMQ, etc.) may be introduced.
 - [ ] **SQLite queue is source-of-truth** — Worker state must always be persisted to SQLite, not held only in memory.
 - [ ] **Graceful shutdown** — Any worker change must preserve the `SIGTERM → drain → flush → exit` sequence.
 - [ ] **Rate Limiter always active** — The Token Bucket rate limiter must never be bypassed, even during testing.

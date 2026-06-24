@@ -26,7 +26,7 @@
 
 ### §3 설정 구조체 및 디스패처 연결
 - [config.go](file:///mnt/c/Users/admin/projects/personal/tardis/internal/config/config.go) 의 `StorageConfig` 구조체에 해당 프로바이더 전용 설정 구조체(예: `<Name>Config`)를 추가하고 YAML 태그를 매핑합니다.
-- [main.go](file:///mnt/c/Users/admin/projects/personal/tardis/cmd/tardis/main.go) 의 storage provider 초기화 단락(444~452행 부근)에 `cfg.Storage.Provider == "<backend_name>"` 분기를 추가하고, 생성한 팩토리 함수를 호출하여 `provider` 변수에 할당합니다.
+- [main.go](file:///mnt/c/Users/admin/projects/personal/tardis/cmd/hippo/main.go) 의 storage provider 초기화 단락(444~452행 부근)에 `cfg.Storage.Provider == "<backend_name>"` 분기를 추가하고, 생성한 팩토리 함수를 호출하여 `provider` 변수에 할당합니다.
 - **기존 분기 로직(예: google_drive)은 수정 금지** — 오직 신규 분기만 추가합니다.
 
 ### §4 정적 검증
@@ -36,10 +36,10 @@
   ```
 
 ### §5 실제 환경 검증
-- 개발용 설정 파일(`tardis.example.yml` 등)에 새 프로바이더 설정을 기입하고 `/verify` 슬래시 커맨드를 호출하여 기동 성공 여부 및 로그 헬스를 점검합니다.
+- 개발용 설정 파일(`hippodrop.example.yml` 등)에 새 프로바이더 설정을 기입하고 `/verify` 슬래시 커맨드를 호출하여 기동 성공 여부 및 로그 헬스를 점검합니다.
 
 ### §6 보고
-- 추가된 어댑터 파일 경로, [config.go](file:///mnt/c/Users/admin/projects/personal/tardis/internal/config/config.go) 및 [main.go](file:///mnt/c/Users/admin/projects/personal/tardis/cmd/tardis/main.go) 수정 내역, 검증 결과를 요약하여 보고합니다.
+- 추가된 어댑터 파일 경로, [config.go](file:///mnt/c/Users/admin/projects/personal/tardis/internal/config/config.go) 및 [main.go](file:///mnt/c/Users/admin/projects/personal/tardis/cmd/hippo/main.go) 수정 내역, 검증 결과를 요약하여 보고합니다.
 
 ## 핵심 불변식 / 계약
 
@@ -51,4 +51,4 @@
 | 증상 | 원인 | 조치 |
 | --- | --- | --- |
 | 빌드 오류 (Interface implementation) | 인터페이스 시그니처 불일치 | `Upload`, `Download`, `GetPathID` 메서드 타입 및 파라미터가 `Provider`와 일치하는지 확인 |
-| Unsupported storage provider | 디스패처 분기 누락 또는 오타 | `cmd/tardis/main.go` 초기화 분기 문자열 검토 |
+| Unsupported storage provider | 디스패처 분기 누락 또는 오타 | `cmd/hippo/main.go` 초기화 분기 문자열 검토 |

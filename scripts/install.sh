@@ -2,9 +2,9 @@
 set -e
 
 # Configuration
-REPO="Utaewook/Tardis"
+REPO="Utaewook/HippoDrop"
 BIN_DIR="/usr/local/bin"
-BINARY_NAME="tardis"
+BINARY_NAME="hippo"
 
 # Determine if sudo is needed and available
 SUDO=""
@@ -28,7 +28,7 @@ esac
 # GitHub Releases URL construction
 DOWNLOAD_URL="https://github.com/${REPO}/releases/latest/download/${BINARY_NAME}-${OS}-${ARCH}"
 
-echo "Downloading Tardis for ${OS}/${ARCH}..."
+echo "Downloading HippoDrop for ${OS}/${ARCH}..."
 
 # Download binary to a temporary location
 TMP_FILE="/tmp/${BINARY_NAME}"
@@ -37,7 +37,7 @@ if command -v curl >/dev/null 2>&1; then
 elif command -v wget >/dev/null 2>&1; then
     wget -qO "$TMP_FILE" "$DOWNLOAD_URL"
 else
-    echo "Error: curl or wget is required to download Tardis."
+    echo "Error: curl or wget is required to download HippoDrop."
     exit 1
 fi
 
@@ -48,6 +48,6 @@ echo "Installing to ${BIN_DIR}..."
 $SUDO mv "$TMP_FILE" "${BIN_DIR}/${BINARY_NAME}"
 
 echo "=========================================="
-echo "Tardis installed successfully!"
-echo "Run it with: tardis init <project>"
+echo "HippoDrop installed successfully!"
+echo "Run it with: hippo init <project>"
 echo "=========================================="

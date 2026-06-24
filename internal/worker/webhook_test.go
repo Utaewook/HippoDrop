@@ -29,7 +29,7 @@ func TestWebhookSender_SendSuccess(t *testing.T) {
 			t.Errorf("expected JSON content type, got %s", r.Header.Get("Content-Type"))
 		}
 
-		sig := r.Header.Get("X-Tardis-Signature")
+		sig := r.Header.Get("X-HippoDrop-Signature")
 		receivedSignature <- sig
 
 		body, _ := io.ReadAll(r.Body)

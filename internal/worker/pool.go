@@ -9,8 +9,8 @@ import (
 
 	"golang.org/x/time/rate"
 
-	"tardis/internal/queue"
-	"tardis/internal/storage"
+	"hippodrop/internal/queue"
+	"hippodrop/internal/storage"
 )
 
 type Pool struct {

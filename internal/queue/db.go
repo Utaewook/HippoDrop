@@ -21,7 +21,7 @@ func Open(dataDir string) (*DB, error) {
 		return nil, fmt.Errorf("failed to create data directory: %w", err)
 	}
 
-	dbPath := filepath.Join(dataDir, "tardis.db")
+	dbPath := filepath.Join(dataDir, "hippodrop.db")
 	
 	// Open SQLite connection with WAL mode enabled for better concurrency
 	db, err := sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_busy_timeout=5000&_foreign_keys=on")

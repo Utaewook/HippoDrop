@@ -1,4 +1,4 @@
-# /verify — 단일 컴포넌트 변경 검증 (Tardis 네이티브)
+# /verify — 단일 컴포넌트 변경 검증 (HippoDrop 네이티브)
 
 변경한 컴포넌트를 **실제 실행 환경에서** 기동해 검증합니다: 기동 → 로그 헬스 확인 →
 (선택) 동작 ping → 정리. 호스트 직접 실행이나 단위 테스트 단독 종료 금지.
@@ -18,8 +18,8 @@
 
 ### §2 기동
 ```bash
-./build/tardis start -c tardis.example.yml &  # background 실행
-echo $! > tardis_test.pid
+./build/hippo start my-project &  # background 실행
+echo $! > hippo_test.pid
 ```
 
 ### §3 로그 헬스 확인 (필수)
@@ -36,7 +36,7 @@ curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8080/health   # 기대
 
 ### §5 정리
 - `--keep` 미지정 시 프로세스 정지.
-- `kill -TERM $(cat tardis_test.pid)`
+- `kill -TERM $(cat hippo_test.pid)`
 - 실패 시 **즉시 파괴 금지** — 로그 확인 후 정리.
 
 ### §6 보고
@@ -47,5 +47,5 @@ curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8080/health   # 기대
 | 증상 | 원인 | 조치 |
 | --- | --- | --- |
 | `Address already in use` | 포트 점유 | §1 회귀 (잔존 프로세스 정리) |
-| `database locked` | 다중 인스턴스가 같은 data_dir 점유 | `tardis.example.yml`의 data_dir 확인 |
+| `database locked` | 다중 인스턴스가 같은 data_dir 점유 | `config.yml`의 data_dir 확인 |
 | 응답코드 4xx/5xx | API 오류 | `docs/api.md` 계약 확인 |

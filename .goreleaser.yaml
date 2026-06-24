@@ -1,6 +1,6 @@
 version: 2
 
-project_name: tardis
+project_name: hippodrop
 
 before:
   hooks:
@@ -8,8 +8,8 @@ before:
 
 builds:
   - id: linux-amd64
-    binary: tardis
-    main: ./cmd/tardis/main.go
+    binary: hippo
+    main: ./cmd/hippo/main.go
     goos:
       - linux
     goarch:
@@ -22,8 +22,8 @@ builds:
       - -s -w -X main.Version={{.Version}}
 
   - id: linux-arm64
-    binary: tardis
-    main: ./cmd/tardis/main.go
+    binary: hippo
+    main: ./cmd/hippo/main.go
     goos:
       - linux
     goarch:
@@ -36,8 +36,8 @@ builds:
       - -s -w -X main.Version={{.Version}}
 
   - id: darwin-arm64
-    binary: tardis
-    main: ./cmd/tardis/main.go
+    binary: hippo
+    main: ./cmd/hippo/main.go
     goos:
       - darwin
     goarch:
@@ -50,7 +50,7 @@ builds:
       - -s -w -X main.Version={{.Version}}
 
 archives:
-  - id: tardis-archive
+  - id: hippodrop-archive
     builds:
       - linux-amd64
       - linux-arm64

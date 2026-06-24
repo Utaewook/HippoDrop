@@ -3,7 +3,7 @@ set -e
 
 # Configuration
 BIN_DIR="/usr/local/bin"
-BINARY_NAME="tardis"
+BINARY_NAME="hippo"
 
 # Determine if sudo is needed and available
 SUDO=""
@@ -15,7 +15,7 @@ if [ "$(id -u)" -ne 0 ]; then
     fi
 fi
 
-echo "Stopping any running Tardis instances..."
+echo "Stopping any running HippoDrop instances..."
 # Try using the binary itself to stop the daemon if it exists
 if command -v "$BINARY_NAME" >/dev/null 2>&1; then
     "$BINARY_NAME" stop >/dev/null 2>&1 || true
@@ -23,7 +23,7 @@ fi
 
 # Fallback: kill processes if still running
 if pgrep "$BINARY_NAME" >/dev/null 2>&1; then
-    echo "Sending SIGTERM to remaining Tardis processes..."
+    echo "Sending SIGTERM to remaining HippoDrop processes..."
     $SUDO pkill "$BINARY_NAME" >/dev/null 2>&1 || true
 fi
 
@@ -33,8 +33,8 @@ if [ -f "${BIN_DIR}/${BINARY_NAME}" ]; then
     $SUDO rm "${BIN_DIR}/${BINARY_NAME}"
 fi
 
-# Clean up user level configuration directory (~/.tardis)
-USER_CONFIG_DIR="${HOME}/.tardis"
+# Clean up user level configuration directory (~/.hippodrop)
+USER_CONFIG_DIR="${HOME}/.hippodrop"
 if [ -d "${USER_CONFIG_DIR}" ]; then
     echo "Removing user configuration and database at ${USER_CONFIG_DIR}..."
     rm -rf "${USER_CONFIG_DIR}"
@@ -43,8 +43,8 @@ fi
 echo "=========================================="
 # Verify removal
 if [ ! -f "${BIN_DIR}/${BINARY_NAME}" ]; then
-    echo "Tardis uninstalled successfully!"
+    echo "HippoDrop uninstalled successfully!"
 else
-    echo "Warning: Tardis binary might still be present at ${BIN_DIR}/${BINARY_NAME}."
+    echo "Warning: HippoDrop binary might still be present at ${BIN_DIR}/${BINARY_NAME}."
 fi
 echo "=========================================="

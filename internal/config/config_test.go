@@ -9,13 +9,13 @@ import (
 func TestLoad_ValidConfig(t *testing.T) {
 	// Create a temporary directory for test configuration file
 	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, "tardis_test.yml")
+	configPath := filepath.Join(tempDir, "hippodrop_test.yml")
 
 	// Write a valid YAML config content
 	validYAML := `
 server:
   port: 8080
-  data_dir: "/tmp/tardis"
+  data_dir: "/tmp/hippodrop"
 storage:
   provider: "google_drive"
   google_drive:
@@ -42,8 +42,8 @@ workers:
 	if cfg.Server.Port != 8080 {
 		t.Errorf("expected port 8080, got %d", cfg.Server.Port)
 	}
-	if cfg.Server.DataDir != "/tmp/tardis" {
-		t.Errorf("expected data_dir /tmp/tardis, got %s", cfg.Server.DataDir)
+	if cfg.Server.DataDir != "/tmp/hippodrop" {
+		t.Errorf("expected data_dir /tmp/hippodrop, got %s", cfg.Server.DataDir)
 	}
 	if cfg.Storage.Provider != "google_drive" {
 		t.Errorf("expected provider google_drive, got %s", cfg.Storage.Provider)

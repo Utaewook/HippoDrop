@@ -1,4 +1,4 @@
-module tardis
+module hippodrop
 
 go 1.25.11
 

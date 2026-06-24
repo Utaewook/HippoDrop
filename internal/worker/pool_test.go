@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"tardis/internal/queue"
+	"hippodrop/internal/queue"
 )
 
 // MockProvider is a mock implementation of storage.Provider

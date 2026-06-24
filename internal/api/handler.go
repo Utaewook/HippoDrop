@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"tardis/internal/queue"
+	"hippodrop/internal/queue"
 )
 
 type TaskScheduler interface {

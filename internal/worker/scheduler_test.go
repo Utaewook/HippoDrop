@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"tardis/internal/queue"
+	"hippodrop/internal/queue"
 )
 
 func setupTestDB(t *testing.T) (*queue.DB, func()) {

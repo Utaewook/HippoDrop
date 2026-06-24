@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"tardis/internal/queue"
+	"hippodrop/internal/queue"
 )
 
 // Scheduler polls the database for pending tasks and pushes them to a channel.

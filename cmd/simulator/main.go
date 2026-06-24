@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"tardis/internal/simulator"
+	"hippodrop/internal/simulator"
 )
 
 func main() {
@@ -29,7 +29,7 @@ func main() {
 		log.Fatalf("[Error] Invalid poll_interval: %v", err)
 	}
 
-	fmt.Printf("Starting Tardis Simulator targeting %s\n", cfg.TargetURL)
+	fmt.Printf("Starting HippoDrop Simulator targeting %s\n", cfg.TargetURL)
 	fmt.Printf("Workspace: %s\n", cfg.Workspace)
 
 	tracker := simulator.NewTracker(cfg.TargetURL, pollDur)
@@ -80,7 +80,7 @@ func runService(ctx context.Context, svc simulator.ServiceConfig, workspace stri
 			fileName := filepath.Base(localPath)
 			remotePath := filepath.Join(svc.RemoteDir, fileName)
 
-			// Convert local path to absolute path for tardis
+			// Convert local path to absolute path for hippodrop
 			absLocalPath, err := filepath.Abs(localPath)
 			if err != nil {
 				log.Printf("[Warning] [%s] Failed to resolve absolute path: %v", svc.Name, err)

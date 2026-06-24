@@ -1,10 +1,10 @@
-# Tardis Architecture Decisions (Grill-Me Session)
+# HippoDrop Architecture Decisions (Grill-Me Session)
 
 - **Date:** 2026-06-13
 - **Type:** Decision
 
 ## Context
-During the initial implementation planning phase for Tardis, several architectural design choices regarding the Scheduler, Task Recovery, API Schema, and File Download mechanisms were left open.
+During the initial implementation planning phase for HippoDrop, several architectural design choices regarding the Scheduler, Task Recovery, API Schema, and File Download mechanisms were left open.
 
 ## Issue/Requirement
 Before writing the core logic, we needed to lock in specific behaviors to ensure consistency and avoid rework, particularly around:

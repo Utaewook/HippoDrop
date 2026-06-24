@@ -13,7 +13,7 @@ import (
 	"net/http"
 	"time"
 
-	"tardis/internal/queue"
+	"hippodrop/internal/queue"
 )
 
 type WebhookPayload struct {
@@ -131,12 +131,12 @@ func (s *WebhookSender) sendWebhook(ctx context.Context, t *queue.Task) {
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "Tardis-Webhook/1.0")
+	req.Header.Set("User-Agent", "HippoDrop-Webhook/1.0")
 
-	// Calculate and set X-Tardis-Signature if API key is set
+	// Calculate and set X-HippoDrop-Signature if API key is set
 	if s.apiKey != "" {
 		signature := s.computeHMAC(bodyBytes, s.apiKey)
-		req.Header.Set("X-Tardis-Signature", signature)
+		req.Header.Set("X-HippoDrop-Signature", signature)
 	}
 
 	resp, err := s.client.Do(req)

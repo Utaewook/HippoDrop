@@ -17,7 +17,7 @@ import (
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 
-	"tardis/internal/queue"
+	"hippodrop/internal/queue"
 )
 
 type GoogleDriveAdapter struct {
@@ -55,7 +55,7 @@ func NewGoogleDriveAdapter(ctx context.Context, credentialsPath string, tokenPat
 	}
 
 	if rootDir == "" {
-		rootDir = "tardis"
+		rootDir = "hippodrop"
 	}
 
 	return &GoogleDriveAdapter{

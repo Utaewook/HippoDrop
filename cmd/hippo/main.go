@@ -34,21 +34,21 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 
-	"tardis/internal/api"
-	"tardis/internal/assets"
-	"tardis/internal/config"
-	"tardis/internal/queue"
-	"tardis/internal/storage"
-	"tardis/internal/worker"
+	"hippodrop/internal/api"
+	"hippodrop/internal/assets"
+	"hippodrop/internal/config"
+	"hippodrop/internal/queue"
+	"hippodrop/internal/storage"
+	"hippodrop/internal/worker"
 )
 
 var Version = "dev"
 
 func getProjectDir(projectName string) string {
 	if home, err := os.UserHomeDir(); err == nil {
-		return filepath.Join(home, ".tardis", "projects", projectName)
+		return filepath.Join(home, ".hippodrop", "projects", projectName)
 	}
-	return fmt.Sprintf("./.tardis/projects/%s", projectName)
+	return fmt.Sprintf("./.hippodrop/projects/%s", projectName)
 }
 
 func getProjectConfigPath(projectName string) string {
@@ -65,7 +65,7 @@ func loadProjectConfig(projectName string) (*config.Config, error) {
 }
 
 func getPIDFilePath(projectName string) string {
-	return filepath.Join(getProjectDir(projectName), "tardis.pid")
+	return filepath.Join(getProjectDir(projectName), "hippodrop.pid")
 }
 
 func main() {
@@ -78,7 +78,7 @@ func main() {
 
 	switch command {
 	case "--version", "-v":
-		fmt.Printf("Tardis %s\n", Version)
+		fmt.Printf("HippoDrop %s\n", Version)
 		return
 	case "--help", "-h":
 		printUsage()
@@ -125,18 +125,18 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Println("Tardis Cloud Storage Proxy Daemon")
+	fmt.Println("HippoDrop Cloud Storage Proxy Daemon")
 	fmt.Println("\nUsage:")
-	fmt.Println("  tardis init <project>         Launch setup wizard for a new project")
-	fmt.Println("  tardis start <project> [-d]   Start the daemon (use -d for background)")
-	fmt.Println("  tardis ls [-a] [-l]           List daemons (-a: all, -l: details)")
-	fmt.Println("  tardis status <project>       Check the daemon running status")
-	fmt.Println("  tardis stop <project>         Stop the running daemon gracefully")
-	fmt.Println("  tardis pause <project>        Pause dispatching new tasks")
-	fmt.Println("  tardis resume <project>       Resume dispatching tasks")
-	fmt.Println("  tardis rm <project>           Remove a stopped project completely")
-	fmt.Println("  tardis --version              Show version")
-	fmt.Println("  tardis --help                 Show help")
+	fmt.Println("  hippo init <project>         Launch setup wizard for a new project")
+	fmt.Println("  hippo start <project> [-d]   Start the daemon (use -d for background)")
+	fmt.Println("  hippo ls [-a] [-l]           List daemons (-a: all, -l: details)")
+	fmt.Println("  hippo status <project>       Check the daemon running status")
+	fmt.Println("  hippo stop <project>         Stop the running daemon gracefully")
+	fmt.Println("  hippo pause <project>        Pause dispatching new tasks")
+	fmt.Println("  hippo resume <project>       Resume dispatching tasks")
+	fmt.Println("  hippo rm <project>           Remove a stopped project completely")
+	fmt.Println("  hippo --version              Show version")
+	fmt.Println("  hippo --help                 Show help")
 }
 
 func getNextAvailablePort() int {
@@ -144,7 +144,7 @@ func getNextAvailablePort() int {
 	if err != nil {
 		return 8080
 	}
-	projectsDir := filepath.Join(home, ".tardis", "projects")
+	projectsDir := filepath.Join(home, ".hippodrop", "projects")
 	
 	highestPort := 8079
 	entries, err := os.ReadDir(projectsDir)
@@ -170,7 +170,7 @@ func runInit(projectName string) {
 	cfgPath := getProjectConfigPath(projectName)
 	if _, err := os.Stat(cfgPath); err == nil {
 		fmt.Printf("[Error] Project '%s' already exists.\n", projectName)
-		fmt.Printf("[Hint] If you want to recreate it, please remove it first using: tardis rm %s\n", projectName)
+		fmt.Printf("[Hint] If you want to recreate it, please remove it first using: hippo rm %s\n", projectName)
 		os.Exit(1)
 	}
 
@@ -183,7 +183,7 @@ func runInit(projectName string) {
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewNote().
-				Title("Tardis Setup Wizard").
+				Title("HippoDrop Setup Wizard").
 				Description(fmt.Sprintf("Welcome! Let's configure your project '%s'.\nPress Enter to continue.", projectName)),
 			huh.NewSelect[string]().
 				Title("Choose your cloud storage provider:").
@@ -271,7 +271,7 @@ func runInit(projectName string) {
 		oauth2.SetAuthURLParam("code_challenge", challenge),
 		oauth2.SetAuthURLParam("code_challenge_method", "S256"))
 
-	fmt.Printf("\nOpen this link in your browser to authorize Tardis:\n\n%v\n\n", authURL)
+	fmt.Printf("\nOpen this link in your browser to authorize HippoDrop:\n\n%v\n\n", authURL)
 
 	var authCode string
 	if err == nil {
@@ -376,7 +376,7 @@ workers:
 	fmt.Printf("\nSuccess! Project '%s' is ready to run.\n", projectName)
 	fmt.Printf("Configuration saved to: %s\n", cfgPath)
 	fmt.Println("\nYou can now start the daemon by running:")
-	fmt.Printf("Run:  tardis start %s\n", projectName)
+	fmt.Printf("Run:  hippo start %s\n", projectName)
 }
 
 func runStart(projectName string) {
@@ -410,7 +410,7 @@ func runStart(projectName string) {
 			os.Exit(1)
 		}
 		
-		fmt.Printf("Tardis daemon started in background (PID: %d)\n", cmd.Process.Pid)
+		fmt.Printf("HippoDrop daemon started in background (PID: %d)\n", cmd.Process.Pid)
 		fmt.Printf("Logs: %s\n", logPath)
 		return
 	}
@@ -420,7 +420,7 @@ func runStart(projectName string) {
 	// Check if config exists
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		fmt.Printf("[Error] Config file not found at %s\n", configPath)
-		fmt.Printf("[Hint] Please run 'tardis init %s' first to generate a configuration.\n", projectName)
+		fmt.Printf("[Hint] Please run 'hippo init %s' first to generate a configuration.\n", projectName)
 		os.Exit(1)
 	}
 	
@@ -431,7 +431,7 @@ func runStart(projectName string) {
 	}
 	defer removePIDFile(projectName)
 	
-	fmt.Printf("Tardis Daemon starting for project '%s'...\n", projectName)
+	fmt.Printf("HippoDrop Daemon starting for project '%s'...\n", projectName)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -448,7 +448,7 @@ func runStart(projectName string) {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 	defer db.Close()
-	log.Printf("SQLite DB initialized at %s/tardis.db", cfg.Server.DataDir)
+	log.Printf("SQLite DB initialized at %s/hippodrop.db", cfg.Server.DataDir)
 
 	// 4. Initialize Storage Provider
 	var provider storage.Provider
@@ -526,7 +526,7 @@ func runStart(projectName string) {
 	pool.Wait()
 	log.Println("Workers finished.")
 
-	log.Println("Tardis shutdown gracefully. Bye!")
+	log.Println("HippoDrop shutdown gracefully. Bye!")
 }
 
 func openBrowser(url string) error {
@@ -550,7 +550,7 @@ func writePIDFile(projectName string) error {
 		var pid int
 		if _, scanErr := fmt.Sscanf(string(data), "%d", &pid); scanErr == nil {
 			if isProcessRunning(pid) {
-				return fmt.Errorf("tardis daemon is already running for project '%s' (PID: %d)", projectName, pid)
+				return fmt.Errorf("hippodrop daemon is already running for project '%s' (PID: %d)", projectName, pid)
 			}
 		}
 	}
@@ -619,7 +619,7 @@ func runStatus(projectName string) {
 		if _, statErr := os.Stat(pidPath); statErr == nil {
 			fmt.Println("[Warning] PID file exists but daemon is not responding. (Status: Stale)")
 		} else {
-			fmt.Printf("[Info] Tardis daemon for project '%s' is not running.\n", projectName)
+			fmt.Printf("[Info] HippoDrop daemon for project '%s' is not running.\n", projectName)
 		}
 		return
 	}
@@ -643,7 +643,7 @@ func runStop(projectName string) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusOK {
-		fmt.Printf("Shutdown signal sent to Tardis daemon for project '%s'.\n", projectName)
+		fmt.Printf("Shutdown signal sent to HippoDrop daemon for project '%s'.\n", projectName)
 	} else {
 		fmt.Printf("[Error] Shutdown request failed with status: %d\n", resp.StatusCode)
 	}
@@ -658,7 +658,7 @@ func runPause(projectName string) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusOK {
-		fmt.Printf("[Paused] Tardis daemon for project '%s' has been paused.\n", projectName)
+		fmt.Printf("[Paused] HippoDrop daemon for project '%s' has been paused.\n", projectName)
 	} else {
 		fmt.Printf("[Error] Pause request failed with status: %d\n", resp.StatusCode)
 	}
@@ -673,7 +673,7 @@ func runResume(projectName string) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusOK {
-		fmt.Printf("[Resumed] Tardis daemon for project '%s' has been resumed.\n", projectName)
+		fmt.Printf("[Resumed] HippoDrop daemon for project '%s' has been resumed.\n", projectName)
 	} else {
 		fmt.Printf("[Error] Resume request failed with status: %d\n", resp.StatusCode)
 	}
@@ -848,7 +848,7 @@ func runCredSetup(credPath, rootDir, portStr *string, confirm *bool, gcpSetupURL
 			huh.NewNote().
 				Title("Google Drive Setup").
 				Description(fmt.Sprintf(
-					"Tardis connects to your Google Drive via OAuth 2.0.\n\n"+
+					"HippoDrop connects to your Google Drive via OAuth 2.0.\n\n"+
 						"[Warning] NEVER USED GOOGLE CLOUD BEFORE?\n"+
 						"Press '?' on your keyboard to open the beginner's step-by-step guide.\n\n"+
 						"Quick Summary (if you know what you're doing):\n"+
@@ -912,8 +912,8 @@ func runRm(projectName string) {
 		var pid int
 		if _, scanErr := fmt.Sscanf(string(data), "%d", &pid); scanErr == nil {
 			if isProcessRunning(pid) {
-				fmt.Printf("[Error] Tardis daemon is currently running (PID: %d).\n", pid)
-				fmt.Printf("[Hint] Please run 'tardis stop %s' first.\n", projectName)
+				fmt.Printf("[Error] HippoDrop daemon is currently running (PID: %d).\n", pid)
+				fmt.Printf("[Hint] Please run 'hippo stop %s' first.\n", projectName)
 				os.Exit(1)
 			}
 		}
@@ -964,11 +964,11 @@ func runLs() {
 		fmt.Printf("[Error] Failed to get home dir: %v\n", err)
 		return
 	}
-	projectsDir := filepath.Join(home, ".tardis", "projects")
+	projectsDir := filepath.Join(home, ".hippodrop", "projects")
 
 	entries, err := os.ReadDir(projectsDir)
 	if err != nil || len(entries) == 0 {
-		fmt.Println("No Tardis projects found.")
+		fmt.Println("No HippoDrop projects found.")
 		return
 	}
 
@@ -990,7 +990,7 @@ func runLs() {
 			continue // skip invalid projects
 		}
 
-		pidPath := filepath.Join(projectsDir, name, "tardis.pid")
+		pidPath := filepath.Join(projectsDir, name, "hippodrop.pid")
 		status := "\033[90mStopped\033[0m"
 		pidStr := "-"
 		isRunning := false
@@ -1026,7 +1026,7 @@ func runLs() {
 
 	if count == 0 {
 		if !showAll {
-			fmt.Println("No running projects. Use 'tardis ls -a' to see all projects.")
+			fmt.Println("No running projects. Use 'hippo ls -a' to see all projects.")
 		}
 	}
 }

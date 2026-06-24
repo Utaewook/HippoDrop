@@ -8,18 +8,18 @@
 ## 런타임 및 환경
 
 - Go 1.25+. 소스 루트는 `cmd/`, `internal/` 이며 Go Module(`go.mod`) 규약.
-- **개발 및 테스트 환경 (Docker 컨테이너)**: 환경 격리를 위해 `tardis-dev` 컨테이너 내부에서 작업을 진행합니다.
+- **개발 및 테스트 환경 (Docker 컨테이너)**: 환경 격리를 위해 `hippodrop-dev` 컨테이너 내부에서 작업을 진행합니다.
   - 빌드/구동 스크립트: `./build/docker/run-dev.sh`
   - 소스코드 마운트 위치: 컨테이너 내부 `/app`
   - Go 바이너리 경로: `/usr/local/go/bin/go` (Go 1.25.11)
-  - 빌드 실행: `docker exec -w /app tardis-dev make build`
-  - 테스트 실행: `docker exec -w /app tardis-dev go test ./...`
+  - 빌드 실행: `docker exec -w /app hippodrop-dev make build`
+  - 테스트 실행: `docker exec -w /app hippodrop-dev go test ./...`
 - 실행 환경: Native 바이너리 (또는 Docker). 빌드·의존성 정의는 `go.mod` / `Makefile` 단일 출처.
 
 ## 엔트리포인트 / 노드 실행
 
-- `cmd/tardis/main.go` 가 유일한 시작점. CLI 모드(`init`, `start`, `status` 등)로 동작.
-- 실행 인자는 `tardis start -c <config.yml>` 형태. `tardis init`으로 설정 생성.
+- `cmd/hippo/main.go` 가 유일한 시작점. CLI 모드(`init`, `start`, `status` 등)로 동작.
+- 실행 인자는 `hippo start <project>` 형태. `hippo init`으로 설정 생성.
 
 ## 검증/테스트 절차
 
@@ -35,7 +35,7 @@
 
 | 건드리는 대상 (경로/파일) | 먼저 읽을 문서 | 비고 |
 | --- | --- | --- |
-| `cmd/tardis/**` (시스템 기동/CLI 전반) | `docs/architecture.md` | 싱글 바이너리 제약, 종료 시퀀스 |
+| `cmd/hippo/**` (시스템 기동/CLI 전반) | `docs/architecture.md` | 싱글 바이너리 제약, 종료 시퀀스 |
 | `internal/storage/**` (스토리지 프로바이더) | `docs/storage.md` | 새 backend 는 `/new-storage` |
 | `internal/queue/**`, `internal/worker/**` | `docs/queue.md` | 큐/워커풀 동시성, SQLite 영속성 |
 | `internal/api/**` (HTTP API) | `docs/api.md` | Fire-and-forget 계약 |

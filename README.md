@@ -1,55 +1,55 @@
 <p align="center">
-  <h1 align="center">🚀 Tardis</h1>
+  <h1 align="center">🚀 HippoDrop</h1>
   <p align="center">
     <strong>A lightweight, asynchronous cloud storage proxy daemon written in Go</strong>
   </p>
   <p align="center">
-    <a href="https://github.com/Utaewook/Tardis/releases/latest"><img src="https://img.shields.io/github/v/release/Utaewook/Tardis?style=flat-square&color=blue" alt="Latest Release"></a>
-    <a href="https://github.com/Utaewook/Tardis/actions"><img src="https://img.shields.io/github/actions/workflow/status/Utaewook/Tardis/release.yml?style=flat-square" alt="Build Status"></a>
-    <a href="https://goreportcard.com/report/github.com/Utaewook/Tardis"><img src="https://goreportcard.com/badge/github.com/Utaewook/Tardis?style=flat-square" alt="Go Report Card"></a>
-    <a href="./LICENSE"><img src="https://img.shields.io/github/license/Utaewook/Tardis?style=flat-square" alt="License"></a>
+    <a href="https://github.com/Utaewook/HippoDrop/releases/latest"><img src="https://img.shields.io/github/v/release/Utaewook/HippoDrop?style=flat-square&color=blue" alt="Latest Release"></a>
+    <a href="https://github.com/Utaewook/HippoDrop/actions"><img src="https://img.shields.io/github/actions/workflow/status/Utaewook/HippoDrop/release.yml?style=flat-square" alt="Build Status"></a>
+    <a href="https://goreportcard.com/report/github.com/Utaewook/HippoDrop"><img src="https://goreportcard.com/badge/github.com/Utaewook/HippoDrop?style=flat-square" alt="Go Report Card"></a>
+    <a href="./LICENSE"><img src="https://img.shields.io/github/license/Utaewook/HippoDrop?style=flat-square" alt="License"></a>
     <a href="https://ko-fi.com/twyou"><img src="https://img.shields.io/badge/Ko--fi-F16061?style=flat-square&logo=ko-fi&logoColor=white" alt="Ko-fi"></a>
   </p>
 </p>
 
 ---
 
-Tardis sits between your local applications and cloud storage providers, handling file uploads and downloads **asynchronously in the background**. Send a fire-and-forget HTTP request, get a `task_id` back instantly, and let Tardis handle the rest.
+HippoDrop sits between your local applications and cloud storage providers, handling file uploads and downloads **asynchronously in the background**. Send a fire-and-forget HTTP request, get a `task_id` back instantly, and let HippoDrop handle the rest.
 
 ```
-Your App ──HTTP──▶ Tardis ──async──▶ Cloud Storage
-                     │
-              SQLite Queue
-         (zero state loss guarantee)
+Your App ──HTTP──▶ HippoDrop ──async──▶ Cloud Storage
+                      │
+               SQLite Queue
+          (zero state loss guarantee)
 ```
 
-## 📥 Installation
+## 📥 HippoDrop Installation
 
-### Quick Install (Linux / macOS)
+### Quick HippoDrop Install (Linux / macOS)
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Utaewook/Tardis/main/scripts/install.sh | sh
+curl -sSL https://raw.githubusercontent.com/Utaewook/HippoDrop/main/scripts/install.sh | sh
 ```
 
-This script automatically detects your OS and architecture, downloads the correct binary, and installs it to `/usr/local/bin/tardis`.
+This script automatically detects your OS and architecture, downloads the correct binary, and installs it to `/usr/local/bin/hippo`.
 
 ### Uninstall
 
-To completely remove Tardis (binary, system configuration, and database) from your system, run:
+To completely remove HippoDrop (binary, system configuration, and database) from your system, run:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Utaewook/Tardis/main/scripts/uninstall.sh | sh
+curl -sSL https://raw.githubusercontent.com/Utaewook/HippoDrop/main/scripts/uninstall.sh | sh
 ```
 
 ### Manual Download
 
-Download the binary for your platform from the [latest release](https://github.com/Utaewook/Tardis/releases/latest):
+Download the binary for your platform from the [latest release](https://github.com/Utaewook/HippoDrop/releases/latest):
 
 | Platform | Architecture | Download |
 |---|---|---|
-| Linux | x86_64 | [`tardis-linux-amd64`](https://github.com/Utaewook/Tardis/releases/latest/download/tardis-linux-amd64) |
-| Linux | ARM64 | [`tardis-linux-arm64`](https://github.com/Utaewook/Tardis/releases/latest/download/tardis-linux-arm64) |
-| macOS | Apple Silicon | [`tardis-darwin-arm64`](https://github.com/Utaewook/Tardis/releases/latest/download/tardis-darwin-arm64) |
+| Linux | x86_64 | [`hippo-linux-amd64`](https://github.com/Utaewook/HippoDrop/releases/latest/download/hippo-linux-amd64) |
+| Linux | ARM64 | [`hippo-linux-arm64`](https://github.com/Utaewook/HippoDrop/releases/latest/download/hippo-linux-arm64) |
+| macOS | Apple Silicon | [`hippo-darwin-arm64`](https://github.com/Utaewook/HippoDrop/releases/latest/download/hippo-darwin-arm64) |
 
 
 ### Build from Source
@@ -57,10 +57,10 @@ Download the binary for your platform from the [latest release](https://github.c
 Requires Go 1.25+ and a C compiler (for CGO/SQLite).
 
 ```bash
-git clone https://github.com/Utaewook/Tardis.git
-cd Tardis
-make build      # → build/tardis
-sudo make install   # → /usr/local/bin/tardis
+git clone https://github.com/Utaewook/HippoDrop.git
+cd HippoDrop
+make build      # → build/hippo
+sudo make install   # → /usr/local/bin/hippo
 ```
 
 ## 🚀 Quick Start
@@ -70,7 +70,7 @@ sudo make install   # → /usr/local/bin/tardis
 Run the interactive setup wizard for a new project:
 
 ```bash
-tardis init my-app
+hippo init my-app
 ```
 
 This launches a full-screen TUI that guides you through:
@@ -78,12 +78,12 @@ This launches a full-screen TUI that guides you through:
 - Setting the path to your OAuth Client ID credentials (client_secret.json)
 - Choosing a root directory name on the cloud storage
 
-Configuration is saved to `~/.tardis/projects/my-app/config.yml`.
+Configuration is saved to `~/.hippodrop/projects/my-app/config.yml`.
 
 ### 2. Start the Daemon
 
 ```bash
-tardis start my-app
+hippo start my-app
 ```
 
 ### 3. Upload a File (with Optional Webhook & Authentication)
@@ -147,16 +147,16 @@ Response:
 ## 🔧 CLI Reference
 
 ```
-tardis init <project>         Launch setup wizard for a new project
-tardis start <project> [-d]   Start the daemon (use -d for background)
-tardis ls [-a] [-l]           List daemons (-a: all, -l: details)
-tardis status <project>       Check the daemon running status
-tardis stop <project>         Stop the running daemon gracefully
-tardis pause <project>        Pause dispatching new tasks
-tardis resume <project>       Resume dispatching tasks
-tardis rm <project>           Remove a stopped project completely
-tardis --version              Show version
-tardis --help                 Show help
+hippo init <project>         Launch setup wizard for a new project
+hippo start <project> [-d]   Start the daemon (use -d for background)
+hippo ls [-a] [-l]           List daemons (-a: all, -l: details)
+hippo status <project>       Check the daemon running status
+hippo stop <project>         Stop the running daemon gracefully
+hippo pause <project>        Pause dispatching new tasks
+hippo resume <project>       Resume dispatching tasks
+hippo rm <project>           Remove a stopped project completely
+hippo --version              Show version
+hippo --help                 Show help
 ```
 
 ## 🛠️ Task Lifecycle

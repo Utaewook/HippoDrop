@@ -2,8 +2,8 @@
 /build/*
 !/build/docker/
 /tmp/
-/tardis
-/tardis-*
+/hippodrop
+/hippodrop-*
 
 # Database and Data directories
 *.db
@@ -22,4 +22,4 @@ Thumbs.db
 
 # Go
 vendor/
-tardis.yml
+hippodrop.yml
