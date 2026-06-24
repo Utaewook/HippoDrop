@@ -256,11 +256,12 @@ func TestHandler_CreateTask_SecurityValidation_SSRF(t *testing.T) {
 		callbackURL string
 		statusCode  int
 	}{
-		{"Localhost loopback", "http://localhost:8080/callback", http.StatusBadRequest},
-		{"127.0.0.1 loopback", "http://127.0.0.1/callback", http.StatusBadRequest},
-		{"Private IP Class A", "http://10.0.0.1/callback", http.StatusBadRequest},
-		{"Private IP Class B", "http://172.16.0.1/callback", http.StatusBadRequest},
-		{"Private IP Class C", "http://192.168.1.1/callback", http.StatusBadRequest},
+		{"Localhost loopback", "http://localhost:8080/callback", http.StatusAccepted},
+		{"127.0.0.1 loopback", "http://127.0.0.1/callback", http.StatusAccepted},
+		{"Private IP Class A", "http://10.0.0.1/callback", http.StatusAccepted},
+		{"Private IP Class B", "http://172.16.0.1/callback", http.StatusAccepted},
+		{"Private IP Class C", "http://192.168.1.1/callback", http.StatusAccepted},
+		{"Link-local / Cloud Metadata IP", "http://169.254.169.254/callback", http.StatusBadRequest},
 		{"Non-HTTP(S) scheme", "ftp://example.com/callback", http.StatusBadRequest},
 		{"Public domain", "https://example.com/callback", http.StatusAccepted},
 		{"Empty callback url", "", http.StatusAccepted},

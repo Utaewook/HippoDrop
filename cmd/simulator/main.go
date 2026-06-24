@@ -32,8 +32,16 @@ func main() {
 	fmt.Printf("Starting HippoDrop Simulator targeting %s\n", cfg.TargetURL)
 	fmt.Printf("Workspace: %s\n", cfg.Workspace)
 
-	tracker := simulator.NewTracker(cfg.TargetURL, pollDur)
+	tracker := simulator.NewTracker(cfg.TargetURL, pollDur, cfg.WebhookURL)
 	go tracker.Start()
+
+	if cfg.WebhookPort > 0 {
+		go func() {
+			if err := tracker.StartWebhookServer(cfg.WebhookPort); err != nil {
+				log.Printf("[Warning] Webhook server stopped or failed: %v", err)
+			}
+		}()
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

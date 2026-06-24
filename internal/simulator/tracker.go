@@ -17,6 +17,7 @@ type Tracker struct {
 	tasks        map[string]*TaskInfo
 	mu           sync.Mutex
 	client       *http.Client
+	webhookURL   string
 }
 
 type TaskInfo struct {
@@ -25,12 +26,13 @@ type TaskInfo struct {
 	CreatedAt time.Time
 }
 
-func NewTracker(targetURL string, pollInterval time.Duration) *Tracker {
+func NewTracker(targetURL string, pollInterval time.Duration, webhookURL string) *Tracker {
 	return &Tracker{
 		targetURL:    targetURL,
 		pollInterval: pollInterval,
 		tasks:        make(map[string]*TaskInfo),
 		client:       &http.Client{Timeout: 10 * time.Second},
+		webhookURL:   webhookURL,
 	}
 }
 
@@ -48,6 +50,9 @@ func (t *Tracker) UploadFile(localPath, remotePath string) error {
 	payload := map[string]string{
 		"local_path":  localPath,
 		"remote_path": remotePath,
+	}
+	if t.webhookURL != "" {
+		payload["callback_url"] = t.webhookURL
 	}
 	b, _ := json.Marshal(payload)
 
@@ -141,4 +146,56 @@ func (t *Tracker) pollTask(taskID string) (string, error) {
 	}
 
 	return res.Status, nil
+}
+
+type webhookPayload struct {
+	TaskID    string `json:"task_id"`
+	Status    string `json:"status"`
+	LocalPath string `json:"local_path"`
+}
+
+func (t *Tracker) StartWebhookServer(port int) error {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/webhook", t.handleWebhook)
+	
+	srv := &http.Server{
+		Addr:    fmt.Sprintf(":%d", port),
+		Handler: mux,
+	}
+	
+	log.Printf("[Webhook] Listening for completion callbacks on :%d/webhook", port)
+	return srv.ListenAndServe()
+}
+
+func (t *Tracker) handleWebhook(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var p webhookPayload
+	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"status":"ok"}`))
+
+	t.mu.Lock()
+	info, exists := t.tasks[p.TaskID]
+	if exists {
+		delete(t.tasks, p.TaskID)
+	}
+	t.mu.Unlock()
+
+	if exists {
+		if p.Status == "done" {
+			latency := time.Since(info.CreatedAt)
+			log.Printf("[Completed] Task %s | Latency: %s | Removed: %s (via webhook)", p.TaskID, latency.Round(time.Millisecond), info.LocalPath)
+			_ = os.Remove(info.LocalPath)
+		} else if p.Status == "failed" {
+			log.Printf("[Failed] Task %s | Retained: %s (via webhook)", p.TaskID, info.LocalPath)
+		}
+	}
 }

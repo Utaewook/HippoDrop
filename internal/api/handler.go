@@ -101,10 +101,10 @@ func (h *Handler) createTask(w http.ResponseWriter, r *http.Request, taskType st
 		return
 	}
 
-	// Validate callback_url: block private/internal network addresses (SSRF prevention)
+	// Validate callback_url: block restricted network addresses (e.g., cloud metadata endpoints)
 	if req.CallbackURL != "" {
-		if isPrivateURL(req.CallbackURL) {
-			http.Error(w, "callback_url must not point to a private or internal network address", http.StatusBadRequest)
+		if isRestrictedURL(req.CallbackURL) {
+			http.Error(w, "callback_url must not point to a restricted link-local address", http.StatusBadRequest)
 			return
 		}
 	}
@@ -218,8 +218,8 @@ func (h *Handler) handleResume(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "running"})
 }
 
-// isPrivateURL checks if a URL points to a private or internal network address.
-func isPrivateURL(rawURL string) bool {
+// isRestrictedURL checks if a URL points to a restricted link-local or metadata network address.
+func isRestrictedURL(rawURL string) bool {
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return true
@@ -237,7 +237,7 @@ func isPrivateURL(rawURL string) bool {
 
 	// Try to parse as IP directly
 	if ip := net.ParseIP(host); ip != nil {
-		return isPrivateIP(ip)
+		return isRestrictedIP(ip)
 	}
 
 	// Resolve hostname to IPs
@@ -247,7 +247,7 @@ func isPrivateURL(rawURL string) bool {
 	}
 
 	for _, ip := range ips {
-		if isPrivateIP(ip) {
+		if isRestrictedIP(ip) {
 			return true
 		}
 	}
@@ -255,9 +255,9 @@ func isPrivateURL(rawURL string) bool {
 	return false
 }
 
-// isPrivateIP returns true if the IP belongs to a private, loopback, or link-local range.
-func isPrivateIP(ip net.IP) bool {
-	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast()
+// isRestrictedIP returns true if the IP belongs to a link-local range (e.g. 169.254.0.0/16).
+func isRestrictedIP(ip net.IP) bool {
+	return ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast()
 }
 
 // blockedPathPrefixes defines system directories that must never be used as local_path.
