@@ -1028,12 +1028,6 @@ func runLs() {
 		}
 	}
 	w.Flush()
-
-	if count == 0 {
-		if !showAll {
-			fmt.Println("No running projects. Use 'hippo ls -a' to see all projects.")
-		}
-	}
 }
 
 func generateCodeVerifier() string {
