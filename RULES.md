@@ -59,6 +59,9 @@ Before writing or merging any code, verify every item:
 - **No unauthorized installs:** Never run `go get`, `npm install`, `pip install`, or equivalent unless in initial setup or explicitly user-approved.
 - **Terminology lock:** Always use the exact terms defined in the architecture and domain docs ([docs/architecture.md](./docs/architecture.md)). Never invent synonyms.
 - **Troubleshooting records:** The AI must proactively use the `trouble-shooting` skill to document errors, problems, requirements, and architectural decisions when resolving complex issues.
+- **Atomic Commits (Commit Granularity):** Never bundle multiple distinct features, bug fixes, or refactorings into a single git commit. Every independent feature or change must be staged and committed as its own atomic, self-contained commit.
+- **Git History Honesty & Transparency:** If you accidentally bundle changes or make a logical error, you must immediately and transparently disclose it to the user. Never perform `git reset`, force-pushes (`git push -f`), or edit git history to hide or gloss over mistakes without explaining the exact situation and obtaining permission first.
+- **Strict Branch Constraints:** All development must be done on the `develop` branch. Direct commits to `main` are strictly forbidden. Merges to `main` must never be done automatically; they are permitted ONLY when the user explicitly requests to merge.
 
 ---
 
