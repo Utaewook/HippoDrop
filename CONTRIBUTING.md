@@ -26,7 +26,7 @@ Use scopes to indicate the specific module or component being modified:
 - **`core`**: Main application assembly, graceful shutdown, orchestration.
 - **`api`**: HTTP routes and handlers (`/upload`, `/download`, `/status`).
 - **`worker`**: Background worker pool, rate limiters, scheduler.
-- **`storage`**: Storage provider adapters (e.g., Google Drive logic).
+- **`storage`**: Storage provider adapters (e.g., cloud storage logic).
 - **`queue`**: SQLite database, task schema, state recovery.
 - **`config`**: YAML parsing, project settings.
 - **`install`**: Installation and uninstallation scripts (`install.sh`, `uninstall.sh`).
@@ -43,7 +43,7 @@ Use scopes to indicate the specific module or component being modified:
 - `feat(tui): support ESC key to quit the init wizard`
 - `fix(storage): prevent path traversal in remote path resolution`
 - `refactor(tui): isolate GCP guide into its own internal/assets package`
-- `docs(tui): improve Google Drive setup guide description`
+- `docs(tui): improve cloud storage setup guide description`
 - `ci: transition release pipeline to GoReleaser and CGO docker build`
 - `chore: add Makefile for build and system-wide installation`
 

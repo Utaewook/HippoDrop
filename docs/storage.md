@@ -20,7 +20,7 @@
 
 ## 2. Path Cache 시멘틱
 
-Google Drive 등의 스토리지는 경로(`/a/b.txt`) 기반이 아닌 Object ID 기반입니다.
+일부 클라우드 스토리지는 경로(`/a/b.txt`) 기반이 아닌 Object ID 기반입니다.
 잦은 폴더 트리 탐색(API 호출)을 방지하기 위해 `path_cache` 테이블을 사용합니다.
 단, Cache는 보조 수단이며(Advisory), 미스 시 반드시 실제 API를 호출해 갱신해야 합니다.
 

@@ -17,7 +17,7 @@
 Tardis sits between your local applications and cloud storage providers, handling file uploads and downloads **asynchronously in the background**. Send a fire-and-forget HTTP request, get a `task_id` back instantly, and let Tardis handle the rest.
 
 ```
-Your App ──HTTP──▶ Tardis ──async──▶ Google Drive
+Your App ──HTTP──▶ Tardis ──async──▶ Cloud Storage
                      │
               SQLite Queue
          (zero state loss guarantee)
@@ -74,9 +74,9 @@ tardis init my-app
 ```
 
 This launches a full-screen TUI that guides you through:
-- Selecting your cloud storage provider (Google Drive)
+- Selecting your cloud storage provider (e.g., Google Drive)
 - Setting the path to your OAuth Client ID credentials (client_secret.json)
-- Choosing a root directory name on Google Drive
+- Choosing a root directory name on the cloud storage
 
 Configuration is saved to `~/.tardis/projects/my-app/config.yml`.
 
