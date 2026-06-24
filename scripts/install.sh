@@ -49,6 +49,6 @@ echo "Installing to ${BIN_DIR}..."
 $SUDO mv "$TMP_FILE" "${BIN_DIR}/${BINARY_NAME}"
 
 echo "=========================================="
-echo "HippoDrop installed successfully!"
+echo "HippoDrop installed."
 echo "Run it with: hippo init <project>"
 echo "=========================================="

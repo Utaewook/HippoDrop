@@ -170,7 +170,7 @@ func runInit(projectName string) {
 	cfgPath := getProjectConfigPath(projectName)
 	if _, err := os.Stat(cfgPath); err == nil {
 		fmt.Printf("[Error] Project '%s' already exists.\n", projectName)
-		fmt.Printf("[Hint] If you want to recreate it, please remove it first using: hippo rm %s\n", projectName)
+		fmt.Printf("[Hint] Remove project first: hippo rm %s\n", projectName)
 		os.Exit(1)
 	}
 
@@ -184,7 +184,7 @@ func runInit(projectName string) {
 		huh.NewGroup(
 			huh.NewNote().
 				Title("HippoDrop Setup Wizard").
-				Description(fmt.Sprintf("Welcome! Let's configure your project '%s'.\nPress Enter to continue.", projectName)),
+				Description(fmt.Sprintf("Configure project '%s'.\nPress Enter to continue.", projectName)),
 			huh.NewSelect[string]().
 				Title("Choose your cloud storage provider:").
 				Options(
@@ -200,7 +200,7 @@ func runInit(projectName string) {
 	}
 
 	if provider != "Google Drive" {
-		fmt.Printf("[Error] Sorry, %s is not supported in this beta version. Exiting.\n", provider)
+		fmt.Printf("[Error] Provider '%s' is not supported.\n", provider)
 		os.Exit(1)
 	}
 
@@ -332,7 +332,7 @@ func runInit(projectName string) {
 	}
 
 	if authCode == "" {
-		fmt.Println("[Error] Could not extract authorization code. Please try again.")
+		fmt.Println("[Error] Could not extract authorization code.")
 		os.Exit(1)
 	}
 
@@ -373,7 +373,7 @@ workers:
 		os.Exit(1)
 	}
 
-	fmt.Printf("\nSuccess! Project '%s' is ready to run.\n", projectName)
+	fmt.Printf("\nProject '%s' configured.\n", projectName)
 	fmt.Printf("Configuration saved to: %s\n", cfgPath)
 	fmt.Println("\nYou can now start the daemon by running:")
 	fmt.Printf("Run:  hippo start %s\n", projectName)
@@ -420,7 +420,7 @@ func runStart(projectName string) {
 	// Check if config exists
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		fmt.Printf("[Error] Config file not found at %s\n", configPath)
-		fmt.Printf("[Hint] Please run 'hippo init %s' first to generate a configuration.\n", projectName)
+		fmt.Printf("[Hint] Run 'hippo init %s' to generate configuration.\n", projectName)
 		os.Exit(1)
 	}
 	
@@ -513,7 +513,7 @@ func runStart(projectName string) {
 
 	// 10. Wait for SIGINT/SIGTERM
 	<-ctx.Done()
-	log.Println("\nReceived shutdown signal. Commencing graceful shutdown...")
+	log.Println("\nReceived shutdown signal. Stopping daemon...")
 
 	// 11. Graceful Shutdown Sequence
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -531,7 +531,7 @@ func runStart(projectName string) {
 	pool.Wait()
 	log.Println("Workers finished.")
 
-	log.Println("HippoDrop shutdown gracefully. Bye!")
+	log.Println("HippoDrop daemon stopped.")
 }
 
 func openBrowser(url string) error {
@@ -918,7 +918,7 @@ func runRm(projectName string) {
 		if _, scanErr := fmt.Sscanf(string(data), "%d", &pid); scanErr == nil {
 			if isProcessRunning(pid) {
 				fmt.Printf("[Error] HippoDrop daemon is currently running (PID: %d).\n", pid)
-				fmt.Printf("[Hint] Please run 'hippo stop %s' first.\n", projectName)
+				fmt.Printf("[Hint] Run 'hippo stop %s' first.\n", projectName)
 				os.Exit(1)
 			}
 		}

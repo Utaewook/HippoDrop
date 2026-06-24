@@ -43,7 +43,7 @@ fi
 echo "=========================================="
 # Verify removal
 if [ ! -f "${BIN_DIR}/${BINARY_NAME}" ]; then
-    echo "HippoDrop uninstalled successfully!"
+    echo "HippoDrop uninstalled."
 else
     echo "Warning: HippoDrop binary might still be present at ${BIN_DIR}/${BINARY_NAME}."
 fi
