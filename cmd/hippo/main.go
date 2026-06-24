@@ -493,8 +493,13 @@ func runStart(projectName string) {
 		w.Write([]byte("OK"))
 	})
 
+	bindAddr := "127.0.0.1"
+	if cfg.Server.APIKey != "" {
+		bindAddr = "0.0.0.0"
+	}
+
 	srv := &http.Server{
-		Addr:    fmt.Sprintf(":%d", cfg.Server.Port),
+		Addr:    fmt.Sprintf("%s:%d", bindAddr, cfg.Server.Port),
 		Handler: mux,
 	}
 

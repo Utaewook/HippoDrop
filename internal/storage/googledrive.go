@@ -192,12 +192,13 @@ func (g *GoogleDriveAdapter) GetPathID(ctx context.Context, path string, createI
 		currentPath += "/" + part
 		
 		var query string
+		escapedPart := escapeDriveQuery(part)
 		if currentID == "root" {
 			// First folder might be shared with the SA, so we search globally
-			query = fmt.Sprintf("name = '%s' and mimeType = 'application/vnd.google-apps.folder' and trashed = false", part)
+			query = fmt.Sprintf("name = '%s' and mimeType = 'application/vnd.google-apps.folder' and trashed = false", escapedPart)
 		} else {
 			// Search inside the parent folder
-			query = fmt.Sprintf("'%s' in parents and name = '%s' and trashed = false", currentID, part)
+			query = fmt.Sprintf("'%s' in parents and name = '%s' and trashed = false", escapeDriveQuery(currentID), escapedPart)
 		}
 		
 		fileList, err := g.srv.Files.List().Q(query).Fields("files(id, name)").SupportsAllDrives(true).IncludeItemsFromAllDrives(true).Context(ctx).Do()
@@ -229,5 +230,10 @@ func (g *GoogleDriveAdapter) GetPathID(ctx context.Context, path string, createI
 	}
 
 	return currentID, nil
+}
+
+// escapeDriveQuery escapes single quotes in values used in Google Drive API queries.
+func escapeDriveQuery(s string) string {
+	return strings.ReplaceAll(s, "'", "\\'")
 }
 

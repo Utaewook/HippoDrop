@@ -3,8 +3,12 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -85,6 +89,24 @@ func (h *Handler) createTask(w http.ResponseWriter, r *http.Request, taskType st
 	if req.LocalPath == "" || req.RemotePath == "" {
 		http.Error(w, "local_path and remote_path are required", http.StatusBadRequest)
 		return
+	}
+
+	// Validate local_path: must be absolute and not in blocked system directories
+	if !filepath.IsAbs(req.LocalPath) {
+		http.Error(w, "local_path must be an absolute path", http.StatusBadRequest)
+		return
+	}
+	if isBlockedPath(req.LocalPath) {
+		http.Error(w, "local_path points to a restricted system directory", http.StatusForbidden)
+		return
+	}
+
+	// Validate callback_url: block private/internal network addresses (SSRF prevention)
+	if req.CallbackURL != "" {
+		if isPrivateURL(req.CallbackURL) {
+			http.Error(w, "callback_url must not point to a private or internal network address", http.StatusBadRequest)
+			return
+		}
 	}
 
 	taskID := uuid.New().String()
@@ -194,4 +216,72 @@ func (h *Handler) handleResume(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "running"})
+}
+
+// isPrivateURL checks if a URL points to a private or internal network address.
+func isPrivateURL(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return true
+	}
+
+	scheme := strings.ToLower(u.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return true
+	}
+
+	host := u.Hostname()
+	if host == "" {
+		return true
+	}
+
+	// Try to parse as IP directly
+	if ip := net.ParseIP(host); ip != nil {
+		return isPrivateIP(ip)
+	}
+
+	// Resolve hostname to IPs
+	ips, err := net.LookupIP(host)
+	if err != nil {
+		return true
+	}
+
+	for _, ip := range ips {
+		if isPrivateIP(ip) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isPrivateIP returns true if the IP belongs to a private, loopback, or link-local range.
+func isPrivateIP(ip net.IP) bool {
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast()
+}
+
+// blockedPathPrefixes defines system directories that must never be used as local_path.
+var blockedPathPrefixes = []string{
+	"/etc", "/root", "/proc", "/sys", "/dev", "/boot", "/var/run", "/usr/sbin",
+}
+
+// isBlockedPath checks if a local path resolves to a restricted system directory.
+func isBlockedPath(localPath string) bool {
+	absPath, err := filepath.Abs(localPath)
+	if err != nil {
+		return true
+	}
+
+	// Resolve symlinks (best effort — target file may not exist yet for downloads)
+	if resolved, err := filepath.EvalSymlinks(absPath); err == nil {
+		absPath = resolved
+	}
+
+	for _, prefix := range blockedPathPrefixes {
+		if absPath == prefix || strings.HasPrefix(absPath, prefix+"/") {
+			return true
+		}
+	}
+
+	return false
 }
