@@ -62,6 +62,11 @@ Before writing or merging any code, verify every item:
 - **Atomic Commits (Commit Granularity):** Never bundle multiple distinct features, bug fixes, or refactorings into a single git commit. Every independent feature or change must be staged and committed as its own atomic, self-contained commit.
 - **Git History Honesty & Transparency:** If you accidentally bundle changes or make a logical error, you must immediately and transparently disclose it to the user. Never perform `git reset`, force-pushes (`git push -f`), or edit git history to hide or gloss over mistakes without explaining the exact situation and obtaining permission first.
 - **Strict Branch Constraints:** All development must be done on the `develop` branch. Direct commits to `main` are strictly forbidden. Merges to `main` must never be done automatically; they are permitted ONLY when the user explicitly requests to merge.
+- **Analyze-first, code-later (No Preemptive Modifications):** The AI must **never** modify source code, configuration files, or documentation preemptively. When a problem or question is raised, the AI must follow this strict sequential workflow:
+  1. **Analyze** — Identify the concrete root cause and describe the problem situation clearly to the user.
+  2. **Propose** — List solution candidates with trade-offs. If ambiguity or multiple valid approaches exist, invoke `/grill-me` to resolve.
+  3. **Wait for approval** — Only after the user explicitly approves a specific solution may the AI proceed to modify source code, configuration, or documentation.
+  Answering a diagnostic question ("why does X fail?") is **never** an implicit instruction to fix it.
 
 ---
 
