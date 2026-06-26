@@ -12,8 +12,13 @@ RUN apt-get update && apt-get install -y \
     sqlite3 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Go 1.25.11
-RUN curl -L https://go.dev/dl/go1.25.11.linux-amd64.tar.gz | tar -C /usr/local -xzf -
+# Install Go 1.25.11 dynamically based on architecture
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then GO_ARCH="amd64"; \
+    elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then GO_ARCH="arm64"; \
+    else echo "Unsupported architecture: $ARCH" && exit 1; fi && \
+    curl -L "https://go.dev/dl/go1.25.11.linux-${GO_ARCH}.tar.gz" | tar -C /usr/local -xzf -
+
 
 # Set Environment Variables
 ENV PATH=$PATH:/usr/local/go/bin
