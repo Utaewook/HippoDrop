@@ -1,78 +1,35 @@
 package main
 
 import (
-	"bufio"
 	"context"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
 	"text/tabwriter"
-	"time"
 
-	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/drive/v3"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 
-	"hippodrop/internal/api"
-	"hippodrop/internal/assets"
-	"hippodrop/internal/config"
-	"hippodrop/internal/queue"
-	"hippodrop/internal/storage"
-	"hippodrop/internal/worker"
+	"hippodrop/internal/auth"
+	"hippodrop/internal/browser"
+	"hippodrop/internal/core"
+	"hippodrop/internal/daemon"
+	"hippodrop/internal/project"
+	"hippodrop/internal/tui"
 )
 
 var Version = "dev"
-
-// oauthRedirectURL is a loopback redirect URI used for the Authorization
-// Code + PKCE flow. Google's "Desktop app" client type does not require the
-// exact port to be pre-registered for loopback addresses (RFC 8252 §7.3),
-// and no listener is ever bound to it — the user pastes the redirected URL
-// back manually instead.
-const oauthRedirectURL = "http://localhost:8085"
-
-func getProjectDir(projectName string) string {
-	if home, err := os.UserHomeDir(); err == nil {
-		return filepath.Join(home, ".hippodrop", "projects", projectName)
-	}
-	return fmt.Sprintf("./.hippodrop/projects/%s", projectName)
-}
-
-func getProjectConfigPath(projectName string) string {
-	return filepath.Join(getProjectDir(projectName), "config.yml")
-}
-
-func loadProjectConfig(projectName string) (*config.Config, error) {
-	cfgPath := getProjectConfigPath(projectName)
-	// Auto correct permissions to 0600 if file exists (Option X)
-	if _, err := os.Stat(cfgPath); err == nil {
-		_ = os.Chmod(cfgPath, 0600)
-	}
-	return config.Load(cfgPath)
-}
-
-func getPIDFilePath(projectName string) string {
-	return filepath.Join(getProjectDir(projectName), "hippodrop.pid")
-}
 
 func main() {
 	if len(os.Args) < 2 {
@@ -145,44 +102,18 @@ func printUsage() {
 	fmt.Println("  hippo --help                 Show help")
 }
 
-func getNextAvailablePort() int {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return 8080
-	}
-	projectsDir := filepath.Join(home, ".hippodrop", "projects")
-	
-	highestPort := 8079
-	entries, err := os.ReadDir(projectsDir)
-	if err != nil {
-		return 8080 // directory might not exist yet
-	}
-	
-	for _, entry := range entries {
-		if entry.IsDir() {
-			cfgPath := filepath.Join(projectsDir, entry.Name(), "config.yml")
-			if cfg, err := config.Load(cfgPath); err == nil {
-				if cfg.Server.Port > highestPort {
-					highestPort = cfg.Server.Port
-				}
-			}
-		}
-	}
-	return highestPort + 1
-}
-
 func runInit(projectName string) {
 	// 0. Check if project already exists
-	cfgPath := getProjectConfigPath(projectName)
+	cfgPath := project.ConfigPath(projectName)
 	if _, err := os.Stat(cfgPath); err == nil {
 		fmt.Printf("[Error] Project '%s' already exists.\n", projectName)
 		fmt.Printf("[Hint] Remove project first: hippo rm %s\n", projectName)
 		os.Exit(1)
 	}
 
-	var provider string
+	var providerChoice string
 	var credPath string
-	var portStr = fmt.Sprintf("%d", getNextAvailablePort())
+	var portStr = fmt.Sprintf("%d", project.NextAvailablePort())
 	var rootDir string = projectName
 	var confirm bool
 
@@ -196,25 +127,25 @@ func runInit(projectName string) {
 				Options(
 					huh.NewOption("Google Drive", "Google Drive"),
 				).
-				Value(&provider),
+				Value(&providerChoice),
 		),
-	).WithKeyMap(arrowKeyMap()).WithProgramOptions(tea.WithAltScreen())
+	).WithKeyMap(tui.ArrowKeyMap()).WithProgramOptions(tea.WithAltScreen())
 
 	if err := form.Run(); err != nil {
 		fmt.Println("Wizard aborted.")
 		os.Exit(1)
 	}
 
-	if provider != "Google Drive" {
-		fmt.Printf("[Error] Provider '%s' is not supported.\n", provider)
+	if providerChoice != "Google Drive" {
+		fmt.Printf("[Error] Provider '%s' is not supported.\n", providerChoice)
 		os.Exit(1)
 	}
 
 	// Try to automatically open the Google Cloud Credentials page
 	gcpSetupURL := "https://console.cloud.google.com/apis/credentials"
-	_ = openBrowser(gcpSetupURL)
+	_ = browser.Open(gcpSetupURL)
 
-	if !runCredSetup(&credPath, &rootDir, &portStr, &confirm, gcpSetupURL) {
+	if !tui.RunCredSetup(&credPath, &rootDir, &portStr, &confirm, gcpSetupURL) {
 		fmt.Println("Wizard aborted.")
 		os.Exit(1)
 	}
@@ -227,7 +158,7 @@ func runInit(projectName string) {
 	if rootDir == "" {
 		rootDir = projectName
 	}
-	
+
 	port, err := strconv.Atoi(portStr)
 	if err != nil || port <= 0 {
 		fmt.Printf("[Error] Invalid port number: %s\n", portStr)
@@ -245,7 +176,7 @@ func runInit(projectName string) {
 	dataDir := filepath.Join(cfgDir, "data")
 	tokenPath := filepath.Join(cfgDir, "token.json")
 
-	// OAuth2 flow
+	// OAuth2 flow (Authorization Code + PKCE, manual redirect paste)
 	b, err := os.ReadFile(credPath)
 	if err != nil {
 		fmt.Printf("[Error] Unable to read client secret file: %v\n", err)
@@ -257,9 +188,9 @@ func runInit(projectName string) {
 		fmt.Printf("[Error] Unable to parse client secret file: %v\n", err)
 		os.Exit(1)
 	}
-	gConfig.RedirectURL = oauthRedirectURL
+	gConfig.RedirectURL = auth.RedirectURL
 
-	tok, err := runManualOAuthFlow(context.Background(), gConfig)
+	tok, err := auth.RunManualFlow(context.Background(), gConfig)
 	if err != nil {
 		fmt.Printf("\n[Error] Google OAuth authentication failed: %v\n", err)
 		os.Exit(1)
@@ -313,13 +244,13 @@ func runStart(projectName string) {
 	if detach {
 		exe, _ := os.Executable()
 		cmd := exec.Command(exe, "start", projectName)
-		
-		logPath := filepath.Join(getProjectDir(projectName), "daemon.log")
+
+		logPath := filepath.Join(project.Dir(projectName), "daemon.log")
 		if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
 			fmt.Printf("[Error] Failed to create log directory: %v\n", err)
 			os.Exit(1)
 		}
-		
+
 		logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 		if err != nil {
 			fmt.Printf("[Error] Failed to open daemon.log: %v\n", err)
@@ -332,13 +263,13 @@ func runStart(projectName string) {
 			fmt.Printf("[Error] Failed to start daemon in background: %v\n", err)
 			os.Exit(1)
 		}
-		
+
 		fmt.Printf("HippoDrop daemon started in background (PID: %d)\n", cmd.Process.Pid)
 		fmt.Printf("Logs: %s\n", logPath)
 		return
 	}
 
-	configPath := getProjectConfigPath(projectName)
+	configPath := project.ConfigPath(projectName)
 
 	// Check if config exists
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
@@ -346,204 +277,33 @@ func runStart(projectName string) {
 		fmt.Printf("[Hint] Run 'hippo init %s' to generate configuration.\n", projectName)
 		os.Exit(1)
 	}
-	
+
 	// Write PID file and check duplication
-	if err := writePIDFile(projectName); err != nil {
+	if err := daemon.WritePIDFile(projectName); err != nil {
 		fmt.Printf("[Error] %v\n", err)
 		os.Exit(1)
 	}
-	defer removePIDFile(projectName)
-	
+	defer daemon.RemovePIDFile(projectName)
+
 	fmt.Printf("HippoDrop Daemon starting for project '%s'...\n", projectName)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// 2. Load Configuration
-	cfg, err := loadProjectConfig(projectName)
+	cfg, err := project.LoadConfig(projectName)
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	// 3. Initialize Database (Queue & Cache)
-	db, err := queue.Open(cfg.Server.DataDir)
-	if err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
+	if err := core.Run(ctx, cfg); err != nil {
+		log.Fatalf("%v", err)
 	}
-	defer db.Close()
-	log.Printf("SQLite DB initialized at %s/hippodrop.db", cfg.Server.DataDir)
-
-	// 4. Initialize Storage Provider
-	var provider storage.Provider
-	if cfg.Storage.Provider == "google_drive" {
-		provider, err = storage.NewGoogleDriveAdapter(context.Background(), cfg.Storage.GoogleDrive.CredentialsPath, cfg.Storage.GoogleDrive.TokenPath, cfg.Storage.GoogleDrive.RootDir, db)
-		if err != nil {
-			log.Fatalf("Failed to initialize Google Drive adapter: %v", err)
-		}
-	} else {
-		log.Fatalf("Unsupported storage provider: %s", cfg.Storage.Provider)
-	}
-
-	// 5. Initialize Task Channel
-	taskChan := make(chan *queue.Task, cfg.Workers.PoolSize*2)
-
-	// 6. Start Worker Pool
-	pool := worker.NewPool(
-		db,
-		provider,
-		taskChan,
-		cfg.Workers.PoolSize,
-		cfg.Storage.GoogleDrive.RateLimitPerSec,
-		cfg.Storage.GoogleDrive.RetryMaxAttempts,
-	)
-	pool.Start(ctx)
-
-	// 7. Start Scheduler
-	scheduler := worker.NewScheduler(db, taskChan)
-	go scheduler.Start(ctx)
-
-	// 7.5. Start Webhook Sender
-	webhookSender := worker.NewWebhookSender(db, cfg.Server.APIKey)
-	go webhookSender.Start(ctx)
-
-	// 8. Setup HTTP API
-	mux := http.NewServeMux()
-	handler := api.NewHandler(db, scheduler, cfg.Server.APIKey)
-	handler.RegisterRoutes(mux)
-
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
-	})
-
-	bindAddr := "127.0.0.1"
-	if cfg.Server.APIKey != "" {
-		bindAddr = "0.0.0.0"
-	}
-
-	srv := &http.Server{
-		Addr:    fmt.Sprintf("%s:%d", bindAddr, cfg.Server.Port),
-		Handler: mux,
-	}
-
-	// 9. Start HTTP Server in background
-	go func() {
-		log.Printf("Server is running on port %d", cfg.Server.Port)
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("HTTP server failed: %v", err)
-		}
-	}()
-
-	// 10. Wait for SIGINT/SIGTERM
-	<-ctx.Done()
-	log.Println("\nReceived shutdown signal. Stopping daemon...")
-
-	// 11. Graceful Shutdown Sequence
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	// Stop accepting new HTTP requests
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Printf("HTTP server shutdown error: %v", err)
-	} else {
-		log.Println("HTTP server stopped.")
-	}
-
-	// Wait for ongoing worker tasks to complete
-	log.Println("Waiting for workers to finish current chunks...")
-	pool.Wait()
-	log.Println("Workers finished.")
-
-	log.Println("HippoDrop daemon stopped.")
-}
-
-func openBrowser(url string) error {
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
-	case "darwin":
-		cmd = exec.Command("open", url)
-	case "linux":
-		cmd = exec.Command("xdg-open", url)
-	default:
-		return fmt.Errorf("unsupported platform")
-	}
-	return cmd.Start()
-}
-
-func writePIDFile(projectName string) error {
-	pidPath := getPIDFilePath(projectName)
-	if data, err := os.ReadFile(pidPath); err == nil {
-		var pid int
-		if _, scanErr := fmt.Sscanf(string(data), "%d", &pid); scanErr == nil {
-			if isProcessRunning(pid) {
-				return fmt.Errorf("hippodrop daemon is already running for project '%s' (PID: %d)", projectName, pid)
-			}
-		}
-	}
-
-	if err := os.MkdirAll(filepath.Dir(pidPath), 0755); err != nil {
-		return err
-	}
-
-	return os.WriteFile(pidPath, []byte(fmt.Sprintf("%d", os.Getpid())), 0644)
-}
-
-func removePIDFile(projectName string) {
-	_ = os.Remove(getPIDFilePath(projectName))
-}
-
-func isProcessRunning(pid int) bool {
-	proc, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-	return isProcessAlive(proc)
-}
-
-func isProcessAlive(p *os.Process) bool {
-	if runtime.GOOS == "windows" {
-		err := p.Signal(os.Interrupt)
-		return err == nil || !errors.Is(err, os.ErrProcessDone)
-	}
-	err := p.Signal(syscall.Signal(0))
-	return err == nil
-}
-
-func sendDaemonRequest(projectName string, method string, path string, body io.Reader) (*http.Response, error) {
-	cfg, err := loadProjectConfig(projectName)
-	if err != nil {
-		return nil, fmt.Errorf("could not load config for project %s: %w", projectName, err)
-	}
-
-	port := cfg.Server.Port
-	if port == 0 {
-		return nil, fmt.Errorf("invalid port in config for project %s", projectName)
-	}
-
-	url := fmt.Sprintf("http://localhost:%d%s", port, path)
-	req, err := http.NewRequest(method, url, body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
-	}
-
-	if method == "POST" {
-		req.Header.Set("Content-Type", "application/json")
-	}
-
-	if cfg.Server.APIKey != "" {
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", cfg.Server.APIKey))
-	}
-
-	client := &http.Client{Timeout: 5 * time.Second}
-	return client.Do(req)
 }
 
 func runStatus(projectName string) {
-	resp, err := sendDaemonRequest(projectName, "GET", "/status", nil)
+	resp, err := daemon.SendRequest(projectName, "GET", "/status", nil)
 	if err != nil {
-		pidPath := getPIDFilePath(projectName)
+		pidPath := project.PIDFilePath(projectName)
 		if _, statErr := os.Stat(pidPath); statErr == nil {
 			fmt.Println("[Warning] PID file exists but daemon is not responding. (Status: Stale)")
 		} else {
@@ -563,7 +323,7 @@ func runStatus(projectName string) {
 }
 
 func runStop(projectName string) {
-	resp, err := sendDaemonRequest(projectName, "POST", "/stop", nil)
+	resp, err := daemon.SendRequest(projectName, "POST", "/stop", nil)
 	if err != nil {
 		fmt.Printf("[Error] Failed to contact daemon: %v (Is it running?)\n", err)
 		return
@@ -578,7 +338,7 @@ func runStop(projectName string) {
 }
 
 func runPause(projectName string) {
-	resp, err := sendDaemonRequest(projectName, "POST", "/pause", nil)
+	resp, err := daemon.SendRequest(projectName, "POST", "/pause", nil)
 	if err != nil {
 		fmt.Printf("[Error] Failed to contact daemon: %v\n", err)
 		return
@@ -593,7 +353,7 @@ func runPause(projectName string) {
 }
 
 func runResume(projectName string) {
-	resp, err := sendDaemonRequest(projectName, "POST", "/resume", nil)
+	resp, err := daemon.SendRequest(projectName, "POST", "/resume", nil)
 	if err != nil {
 		fmt.Printf("[Error] Failed to contact daemon: %v\n", err)
 		return
@@ -607,239 +367,12 @@ func runResume(projectName string) {
 	}
 }
 
-type guideModel struct {
-	viewport viewport.Model
-	content  string
-	ready    bool
-}
-
-func newGuideModel(content string) guideModel {
-	return guideModel{
-		content: content,
-	}
-}
-
-func (m guideModel) Init() tea.Cmd {
-	return nil
-}
-
-func (m guideModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmds []tea.Cmd
-	var cmd tea.Cmd
-
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		headerHeight := 2
-		footerHeight := 2
-		verticalMarginHeight := headerHeight + footerHeight
-
-		if !m.ready {
-			m.viewport = viewport.New(msg.Width, msg.Height-verticalMarginHeight)
-			m.viewport.YPosition = headerHeight
-			m.viewport.SetContent(m.content)
-			m.ready = true
-		} else {
-			m.viewport.Width = msg.Width
-			m.viewport.Height = msg.Height - verticalMarginHeight
-		}
-	}
-
-	m.viewport, cmd = m.viewport.Update(msg)
-	cmds = append(cmds, cmd)
-
-	return m, tea.Batch(cmds...)
-}
-
-func (m guideModel) View() string {
-	if !m.ready {
-		return "\n  Initializing guide..."
-	}
-	header := "Google Drive GCP Setup Guide (Press 'q' or 'Esc' to exit)\n-----------------------------------------------------------"
-	footer := fmt.Sprintf("-----------------------------------------------------------\nScroll: ↑/↓/PgUp/PgDn | %3.f%%", m.viewport.ScrollPercent()*100)
-	return fmt.Sprintf("%s\n%s\n%s", header, m.viewport.View(), footer)
-}
-
-func arrowKeyMap() *huh.KeyMap {
-	km := huh.NewDefaultKeyMap()
-
-	nextKeys := key.NewBinding(
-		key.WithKeys("down"),
-		key.WithHelp("↓", "next"),
-	)
-	prevKeys := key.NewBinding(
-		key.WithKeys("up"),
-		key.WithHelp("↑", "prev"),
-	)
-
-	km.Input.Next = nextKeys
-	km.Input.Prev = prevKeys
-	km.Note.Next = nextKeys
-	km.Note.Prev = prevKeys
-	km.Confirm.Next = nextKeys
-	km.Confirm.Prev = prevKeys
-
-	km.Quit = key.NewBinding(
-		key.WithKeys("ctrl+c", "esc"),
-		key.WithHelp("esc", "quit"),
-	)
-
-	return km
-}
-
-type credSetupModel struct {
-	form      *huh.Form
-	quitting  bool
-	showGuide bool
-	guide     guideModel
-}
-
-func (m credSetupModel) Init() tea.Cmd {
-	return tea.Batch(m.form.Init(), m.guide.Init())
-}
-
-func (m credSetupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if m.showGuide {
-		switch msg := msg.(type) {
-		case tea.KeyMsg:
-			switch msg.String() {
-			case "q", "esc":
-				m.showGuide = false
-				return m, nil
-			case "ctrl+c":
-				m.quitting = true
-				return m, tea.Quit
-			}
-		case tea.WindowSizeMsg:
-			updatedGuide, _ := m.guide.Update(msg)
-			if g, ok := updatedGuide.(guideModel); ok {
-				m.guide = g
-			}
-			// Update form with window size too just in case
-			form, _ := m.form.Update(msg)
-			if f, ok := form.(*huh.Form); ok {
-				m.form = f
-			}
-			return m, nil
-		}
-
-		updatedGuide, cmd := m.guide.Update(msg)
-		if g, ok := updatedGuide.(guideModel); ok {
-			m.guide = g
-		}
-		return m, cmd
-	}
-
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "?":
-			m.showGuide = true
-			return m, nil
-		case "ctrl+c", "esc":
-			m.quitting = true
-			return m, tea.Quit
-		}
-	case tea.WindowSizeMsg:
-		// Send window size to guide even when hidden so it can initialize its viewport size
-		updatedGuide, _ := m.guide.Update(msg)
-		if g, ok := updatedGuide.(guideModel); ok {
-			m.guide = g
-		}
-	}
-
-	form, cmd := m.form.Update(msg)
-	if f, ok := form.(*huh.Form); ok {
-		m.form = f
-	}
-
-	if m.form.State == huh.StateCompleted {
-		return m, tea.Quit
-	}
-
-	return m, cmd
-}
-
-func (m credSetupModel) View() string {
-	if m.quitting {
-		return ""
-	}
-	if m.showGuide {
-		return m.guide.View()
-	}
-	footer := "\n  \033[2m[?] setup guide   [Esc] quit\033[0m"
-	return m.form.View() + footer
-}
-
-func runCredSetup(credPath, rootDir, portStr *string, confirm *bool, gcpSetupURL string) bool {
-	form2 := huh.NewForm(
-		huh.NewGroup(
-			huh.NewNote().
-				Title("Google Drive Setup").
-				Description(fmt.Sprintf(
-					"HippoDrop connects to your Google Drive via OAuth 2.0.\n\n"+
-						"[Warning] NEVER USED GOOGLE CLOUD BEFORE?\n"+
-						"Press '?' on your keyboard to open the beginner's step-by-step guide.\n\n"+
-						"Quick Summary (if you know what you're doing):\n"+
-						"1. Go to: %s\n"+
-						"2. Set up OAuth Consent Screen (Add your Gmail to 'Test users'!).\n"+
-						"3. Create an OAuth Client ID (Type: 'Desktop app').\n"+
-						"4. Download the JSON file and enter its absolute path below.",
-					gcpSetupURL,
-				)),
-			huh.NewInput().
-				Title("Absolute path to client_secret.json:").
-				Value(credPath),
-			huh.NewInput().
-				Title("Port for this daemon (auto-detected):").
-				Value(portStr).
-				Validate(func(str string) error {
-					p, err := strconv.Atoi(str)
-					if err != nil || p <= 0 || p > 65535 {
-						return errors.New("must be a valid port number (1-65535)")
-					}
-					return nil
-				}),
-			huh.NewInput().
-				Title("Google Drive Root Directory Name:").
-				Value(rootDir),
-			huh.NewConfirm().
-				Title("Ready to save configuration?").
-				Value(confirm).
-				Validate(func(v bool) error {
-					if v {
-						if *credPath == "" {
-							return errors.New("credentials path cannot be empty")
-						}
-						if _, err := os.Stat(*credPath); os.IsNotExist(err) {
-							return fmt.Errorf("credentials file not found: %s", *credPath)
-						}
-					}
-					return nil
-				}),
-		),
-	).WithKeyMap(arrowKeyMap())
-
-	model := credSetupModel{
-		form:  form2,
-		guide: newGuideModel(assets.GCPGuideText),
-	}
-	p := tea.NewProgram(model, tea.WithAltScreen())
-	result, err := p.Run()
-	if err != nil {
-		return false
-	}
-	if m, ok := result.(credSetupModel); ok && m.quitting {
-		return false
-	}
-	return true
-}
-
 func runRm(projectName string) {
-	pidPath := getPIDFilePath(projectName)
+	pidPath := project.PIDFilePath(projectName)
 	if data, err := os.ReadFile(pidPath); err == nil {
 		var pid int
 		if _, scanErr := fmt.Sscanf(string(data), "%d", &pid); scanErr == nil {
-			if isProcessRunning(pid) {
+			if daemon.IsProcessRunning(pid) {
 				fmt.Printf("[Error] HippoDrop daemon is currently running (PID: %d).\n", pid)
 				fmt.Printf("[Hint] Run 'hippo stop %s' first.\n", projectName)
 				os.Exit(1)
@@ -847,7 +380,7 @@ func runRm(projectName string) {
 		}
 	}
 
-	projectDir := getProjectDir(projectName)
+	projectDir := project.Dir(projectName)
 	if _, err := os.Stat(projectDir); os.IsNotExist(err) {
 		fmt.Printf("[Error] Project '%s' does not exist.\n", projectName)
 		os.Exit(1)
@@ -914,7 +447,7 @@ func runLs() {
 			continue
 		}
 		name := entry.Name()
-		cfg, err := loadProjectConfig(name)
+		cfg, err := project.LoadConfig(name)
 		if err != nil {
 			continue // skip invalid projects
 		}
@@ -927,7 +460,7 @@ func runLs() {
 		if data, err := os.ReadFile(pidPath); err == nil {
 			var pid int
 			if _, scanErr := fmt.Sscanf(string(data), "%d", &pid); scanErr == nil {
-				if isProcessRunning(pid) {
+				if daemon.IsProcessRunning(pid) {
 					status = "Running"
 					pidStr = strconv.Itoa(pid)
 					isRunning = true
@@ -941,12 +474,12 @@ func runLs() {
 
 		count++
 		if showLong {
-			provider := cfg.Storage.Provider
+			providerName := cfg.Storage.Provider
 			rootDir := ""
-			if provider == "google_drive" {
+			if providerName == "google_drive" {
 				rootDir = cfg.Storage.GoogleDrive.RootDir
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%s\t%s\n", name, status, pidStr, cfg.Server.Port, provider, rootDir)
+			fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%s\t%s\n", name, status, pidStr, cfg.Server.Port, providerName, rootDir)
 		} else {
 			fmt.Fprintf(w, "%s\t%s\t%s\t%d\n", name, status, pidStr, cfg.Server.Port)
 		}
@@ -957,89 +490,4 @@ func runLs() {
 	out = strings.ReplaceAll(out, "Running", "\033[32mRunning\033[0m")
 	out = strings.ReplaceAll(out, "Stopped", "\033[90mStopped\033[0m")
 	fmt.Print(out)
-}
-
-func generateCodeVerifier() string {
-	b := make([]byte, 32)
-	_, _ = rand.Read(b)
-	return base64.RawURLEncoding.EncodeToString(b)
-}
-
-func generateCodeChallenge(verifier string) string {
-	sum := sha256.Sum256([]byte(verifier))
-	return base64.RawURLEncoding.EncodeToString(sum[:])
-}
-
-func generateState() string {
-	return generateCodeVerifier()
-}
-
-// parseAuthResponseURL extracts the OAuth "code" and "state" query
-// parameters from a full redirect URL the user pastes back into the
-// terminal (the address bar content after Google redirects the browser,
-// whether or not that page actually loaded).
-func parseAuthResponseURL(raw string) (code, state string, err error) {
-	u, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil {
-		return "", "", fmt.Errorf("could not parse the pasted URL: %w", err)
-	}
-	q := u.Query()
-	code = q.Get("code")
-	state = q.Get("state")
-	if code == "" {
-		return "", "", errors.New("no 'code' parameter found in the pasted URL")
-	}
-	return code, state, nil
-}
-
-// runManualOAuthFlow drives an Authorization Code + PKCE exchange without a
-// local callback listener. The redirect URI is never actually served —
-// Google still redirects the browser to it after consent, and the user
-// copies that address bar content back into the terminal. This works
-// identically on a local machine, inside a Docker container, or over SSH,
-// since it never depends on the browser being able to reach the CLI process.
-func runManualOAuthFlow(ctx context.Context, gConfig *oauth2.Config) (*oauth2.Token, error) {
-	codeVerifier := generateCodeVerifier()
-	codeChallenge := generateCodeChallenge(codeVerifier)
-	state := generateState()
-
-	authURL := gConfig.AuthCodeURL(state,
-		oauth2.AccessTypeOffline,
-		oauth2.SetAuthURLParam("code_challenge", codeChallenge),
-		oauth2.SetAuthURLParam("code_challenge_method", "S256"),
-		oauth2.SetAuthURLParam("prompt", "consent"),
-	)
-
-	fmt.Println()
-	fmt.Println("\033[1;36mGoogle Drive Authorization\033[0m")
-	fmt.Println("\033[36m────────────────────────────────────────────────────────────\033[0m")
-	fmt.Println("1. 다음 URL을 웹 브라우저에서 열어 로그인 및 동의를 완료해주세요:")
-	fmt.Printf("   \033[32;4m%s\033[0m\n\n", authURL)
-	fmt.Println("2. 동의 후 이동하는 페이지에서 \"사이트에 연결할 수 없음\"이 떠도 정상입니다.")
-	fmt.Println("   그 화면의 주소창에 표시된 전체 URL을 복사해주세요.")
-	fmt.Println("\033[36m────────────────────────────────────────────────────────────\033[0m")
-
-	_ = openBrowser(authURL)
-
-	fmt.Print("\n3. 복사한 전체 URL을 여기에 붙여넣고 Enter를 눌러주세요: ")
-	reader := bufio.NewReader(os.Stdin)
-	line, err := reader.ReadString('\n')
-	if err != nil {
-		return nil, fmt.Errorf("failed to read input: %w", err)
-	}
-
-	code, respState, err := parseAuthResponseURL(line)
-	if err != nil {
-		return nil, err
-	}
-	if respState != state {
-		return nil, errors.New("state mismatch: possible CSRF, authentication aborted")
-	}
-
-	tok, err := gConfig.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", codeVerifier))
-	if err != nil {
-		return nil, fmt.Errorf("failed to exchange authorization code: %w", err)
-	}
-
-	return tok, nil
 }
