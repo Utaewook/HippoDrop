@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -40,6 +42,13 @@ import (
 )
 
 var Version = "dev"
+
+// oauthRedirectURL is a loopback redirect URI used for the Authorization
+// Code + PKCE flow. Google's "Desktop app" client type does not require the
+// exact port to be pre-registered for loopback addresses (RFC 8252 §7.3),
+// and no listener is ever bound to it — the user pastes the redirected URL
+// back manually instead.
+const oauthRedirectURL = "http://localhost:8085"
 
 func getProjectDir(projectName string) string {
 	if home, err := os.UserHomeDir(); err == nil {
@@ -248,14 +257,9 @@ func runInit(projectName string) {
 		fmt.Printf("[Error] Unable to parse client secret file: %v\n", err)
 		os.Exit(1)
 	}
+	gConfig.RedirectURL = oauthRedirectURL
 
-	deviceRes, err := requestDeviceCode(gConfig.ClientID, strings.Join(gConfig.Scopes, " "))
-	if err != nil {
-		fmt.Printf("[Error] Unable to request device code from Google: %v\n", err)
-		os.Exit(1)
-	}
-
-	tok, err := runOAuthPolling(gConfig.ClientID, gConfig.ClientSecret, deviceRes)
+	tok, err := runManualOAuthFlow(context.Background(), gConfig)
 	if err != nil {
 		fmt.Printf("\n[Error] Google OAuth authentication failed: %v\n", err)
 		os.Exit(1)
@@ -778,7 +782,7 @@ func runCredSetup(credPath, rootDir, portStr *string, confirm *bool, gcpSetupURL
 						"Quick Summary (if you know what you're doing):\n"+
 						"1. Go to: %s\n"+
 						"2. Set up OAuth Consent Screen (Add your Gmail to 'Test users'!).\n"+
-						"3. Create an OAuth Client ID (Type: 'TVs and Limited Input Devices').\n"+
+						"3. Create an OAuth Client ID (Type: 'Desktop app').\n"+
 						"4. Download the JSON file and enter its absolute path below.",
 					gcpSetupURL,
 				)),
@@ -961,263 +965,81 @@ func generateCodeVerifier() string {
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
-type DeviceCodeResponse struct {
-	DeviceCode              string `json:"device_code"`
-	UserCode                string `json:"user_code"`
-	VerificationURL         string `json:"verification_url"`
-	VerificationURLComplete string `json:"verification_url_complete,omitempty"`
-	ExpiresIn               int    `json:"expires_in"`
-	Interval                int    `json:"interval"`
+func generateCodeChallenge(verifier string) string {
+	sum := sha256.Sum256([]byte(verifier))
+	return base64.RawURLEncoding.EncodeToString(sum[:])
 }
 
-func requestDeviceCode(clientID, scope string) (*DeviceCodeResponse, error) {
-	v := url.Values{}
-	v.Set("client_id", clientID)
-	v.Set("scope", scope)
+func generateState() string {
+	return generateCodeVerifier()
+}
 
-	resp, err := http.PostForm("https://oauth2.googleapis.com/device/code", v)
+// parseAuthResponseURL extracts the OAuth "code" and "state" query
+// parameters from a full redirect URL the user pastes back into the
+// terminal (the address bar content after Google redirects the browser,
+// whether or not that page actually loaded).
+func parseAuthResponseURL(raw string) (code, state string, err error) {
+	u, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil {
-		return nil, err
+		return "", "", fmt.Errorf("could not parse the pasted URL: %w", err)
 	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
+	q := u.Query()
+	code = q.Get("code")
+	state = q.Get("state")
+	if code == "" {
+		return "", "", errors.New("no 'code' parameter found in the pasted URL")
 	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("device/code request failed: status %d, body %s", resp.StatusCode, string(body))
-	}
-
-	var res DeviceCodeResponse
-	if err := json.Unmarshal(body, &res); err != nil {
-		return nil, err
-	}
-	return &res, nil
+	return code, state, nil
 }
 
-func requestToken(clientID, clientSecret, deviceCode string) (*oauth2.Token, error) {
-	v := url.Values{}
-	v.Set("client_id", clientID)
-	v.Set("client_secret", clientSecret)
-	v.Set("device_code", deviceCode)
-	v.Set("grant_type", "urn:ietf:params:oauth:grant-type:device_code")
+// runManualOAuthFlow drives an Authorization Code + PKCE exchange without a
+// local callback listener. The redirect URI is never actually served —
+// Google still redirects the browser to it after consent, and the user
+// copies that address bar content back into the terminal. This works
+// identically on a local machine, inside a Docker container, or over SSH,
+// since it never depends on the browser being able to reach the CLI process.
+func runManualOAuthFlow(ctx context.Context, gConfig *oauth2.Config) (*oauth2.Token, error) {
+	codeVerifier := generateCodeVerifier()
+	codeChallenge := generateCodeChallenge(codeVerifier)
+	state := generateState()
 
-	resp, err := http.PostForm("https://oauth2.googleapis.com/token", v)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		var errRes struct {
-			Error            string `json:"error"`
-			ErrorDescription string `json:"error_description"`
-		}
-		if err := json.Unmarshal(body, &errRes); err == nil {
-			return nil, fmt.Errorf("oauth_error: %s", errRes.Error)
-		}
-		return nil, fmt.Errorf("status code %d", resp.StatusCode)
-	}
-
-	var tokRes struct {
-		AccessToken  string `json:"access_token"`
-		TokenType    string `json:"token_type"`
-		RefreshToken string `json:"refresh_token"`
-		ExpiresIn    int64  `json:"expires_in"`
-	}
-	if err := json.Unmarshal(body, &tokRes); err != nil {
-		return nil, err
-	}
-
-	tok := &oauth2.Token{
-		AccessToken:  tokRes.AccessToken,
-		TokenType:    tokRes.TokenType,
-		RefreshToken: tokRes.RefreshToken,
-	}
-	if tokRes.ExpiresIn > 0 {
-		tok.Expiry = time.Now().Add(time.Duration(tokRes.ExpiresIn) * time.Second)
-	}
-	return tok, nil
-}
-
-func isPendingError(err error) bool {
-	return strings.Contains(err.Error(), "oauth_error: authorization_pending")
-}
-
-func isSlowDownError(err error) bool {
-	return strings.Contains(err.Error(), "oauth_error: slow_down")
-}
-
-type oauthPollingModel struct {
-	clientID     string
-	clientSecret string
-	deviceCode   string
-	userCode     string
-	authURL      string
-	interval     time.Duration
-	expiresAt    time.Time
-	dots         string
-	token        *oauth2.Token
-	err          error
-	quitting     bool
-}
-
-type animateMsg struct{}
-type pollAttemptMsg struct{}
-type tokenSuccessMsg struct {
-	token *oauth2.Token
-}
-type tokenErrorMsg struct {
-	err error
-}
-
-func tickAnimate() tea.Cmd {
-	return tea.Tick(500*time.Millisecond, func(t time.Time) tea.Msg {
-		return animateMsg{}
-	})
-}
-
-func (m oauthPollingModel) Init() tea.Cmd {
-	_ = openBrowser(m.authURL)
-	return tea.Batch(
-		tickAnimate(),
-		tea.Tick(m.interval, func(t time.Time) tea.Msg {
-			return pollAttemptMsg{}
-		}),
+	authURL := gConfig.AuthCodeURL(state,
+		oauth2.AccessTypeOffline,
+		oauth2.SetAuthURLParam("code_challenge", codeChallenge),
+		oauth2.SetAuthURLParam("code_challenge_method", "S256"),
+		oauth2.SetAuthURLParam("prompt", "consent"),
 	)
-}
 
-func (m oauthPollingModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "esc", "ctrl+c":
-			m.quitting = true
-			m.err = errors.New("authentication cancelled by user")
-			return m, tea.Quit
-		}
+	fmt.Println()
+	fmt.Println("\033[1;36mGoogle Drive Authorization\033[0m")
+	fmt.Println("\033[36m────────────────────────────────────────────────────────────\033[0m")
+	fmt.Println("1. 다음 URL을 웹 브라우저에서 열어 로그인 및 동의를 완료해주세요:")
+	fmt.Printf("   \033[32;4m%s\033[0m\n\n", authURL)
+	fmt.Println("2. 동의 후 이동하는 페이지에서 \"사이트에 연결할 수 없음\"이 떠도 정상입니다.")
+	fmt.Println("   그 화면의 주소창에 표시된 전체 URL을 복사해주세요.")
+	fmt.Println("\033[36m────────────────────────────────────────────────────────────\033[0m")
 
-	case animateMsg:
-		if m.quitting {
-			return m, nil
-		}
-		if m.dots == "..." {
-			m.dots = "."
-		} else {
-			m.dots += "."
-		}
-		return m, tickAnimate()
+	_ = openBrowser(authURL)
 
-	case pollAttemptMsg:
-		if m.quitting {
-			return m, nil
-		}
-		if time.Now().After(m.expiresAt) {
-			m.err = errors.New("authorization code expired")
-			m.quitting = true
-			return m, tea.Quit
-		}
-
-		return m, func() tea.Msg {
-			tok, err := requestToken(m.clientID, m.clientSecret, m.deviceCode)
-			if err != nil {
-				return tokenErrorMsg{err: err}
-			}
-			return tokenSuccessMsg{token: tok}
-		}
-
-	case tokenSuccessMsg:
-		m.token = msg.token
-		m.quitting = true
-		return m, tea.Quit
-
-	case tokenErrorMsg:
-		if m.quitting {
-			return m, nil
-		}
-		if isPendingError(msg.err) {
-			return m, tea.Tick(m.interval, func(t time.Time) tea.Msg {
-				return pollAttemptMsg{}
-			})
-		}
-		if isSlowDownError(msg.err) {
-			m.interval += 5 * time.Second
-			return m, tea.Tick(m.interval, func(t time.Time) tea.Msg {
-				return pollAttemptMsg{}
-			})
-		}
-		m.err = msg.err
-		m.quitting = true
-		return m, tea.Quit
-	}
-	return m, nil
-}
-
-func (m oauthPollingModel) View() string {
-	if m.quitting {
-		return ""
+	fmt.Print("\n3. 복사한 전체 URL을 여기에 붙여넣고 Enter를 눌러주세요: ")
+	reader := bufio.NewReader(os.Stdin)
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		return nil, fmt.Errorf("failed to read input: %w", err)
 	}
 
-	var sb strings.Builder
-	sb.WriteString("\n")
-	sb.WriteString("  \033[1;36mHippoDrop Google Drive Authorization (Device Flow)\033[0m\n")
-	sb.WriteString("  \033[36m────────────────────────────────────────────────────────────\033[0m\n\n")
-	sb.WriteString("  \033[1m1. 다음 URL을 웹 브라우저에서 열어주세요:\033[0m\n")
-	sb.WriteString(fmt.Sprintf("     👉 \033[32;4m%s\033[0m\n\n", m.authURL))
-	sb.WriteString("  \033[1m2. 브라우저 인증 화면에 아래 활성화 코드를 입력해주세요:\033[0m\n")
-	sb.WriteString(fmt.Sprintf("     👉 \033[1;33m%s\033[0m\n\n", m.userCode))
-	sb.WriteString("  \033[36m────────────────────────────────────────────────────────────\033[0m\n\n")
-	sb.WriteString(fmt.Sprintf("  ⌛ \033[36m인증 대기 중%s\033[0m\n", m.dots))
-	sb.WriteString("  \033[2m(취소하려면 Esc 또는 Ctrl+C를 누르세요)\033[0m\n")
-
-	return sb.String()
-}
-
-func runOAuthPolling(clientID, clientSecret string, deviceRes *DeviceCodeResponse) (*oauth2.Token, error) {
-	authURL := deviceRes.VerificationURLComplete
-	if authURL == "" {
-		authURL = deviceRes.VerificationURL
-	}
-
-	model := oauthPollingModel{
-		clientID:     clientID,
-		clientSecret: clientSecret,
-		deviceCode:   deviceRes.DeviceCode,
-		userCode:     deviceRes.UserCode,
-		authURL:      authURL,
-		interval:     time.Duration(deviceRes.Interval) * time.Second,
-		expiresAt:    time.Now().Add(time.Duration(deviceRes.ExpiresIn) * time.Second),
-		dots:         ".",
-	}
-	if model.interval == 0 {
-		model.interval = 5 * time.Second
-	}
-
-	p := tea.NewProgram(model, tea.WithAltScreen())
-	result, err := p.Run()
+	code, respState, err := parseAuthResponseURL(line)
 	if err != nil {
 		return nil, err
 	}
-
-	m, ok := result.(oauthPollingModel)
-	if !ok {
-		return nil, errors.New("invalid TUI model type")
+	if respState != state {
+		return nil, errors.New("state mismatch: possible CSRF, authentication aborted")
 	}
 
-	if m.err != nil {
-		return nil, m.err
+	tok, err := gConfig.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", codeVerifier))
+	if err != nil {
+		return nil, fmt.Errorf("failed to exchange authorization code: %w", err)
 	}
 
-	if m.token == nil {
-		return nil, errors.New("no token received")
-	}
-
-	return m.token, nil
+	return tok, nil
 }
